@@ -91,15 +91,19 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
   // Every token is literal shell data; never concatenate unquoted user arguments.
   const quote = (s: string) => `'${s.replaceAll("'", "'\\''")}'`;
   const windows = process.platform === "win32";
-  const psQuote = (s: string) => `'${s.replaceAll("'", "''")}'`;
-  const expression = [command, ...config.backend.args].map(windows ? psQuote : quote).join(" ");
-  const windowsExpression = "[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);$OutputEncoding=[Console]::OutputEncoding;"
-    + Object.entries(env).map(([key, val]) => `$env:${key}=${psQuote(val)}`).join(";")
-    + "; & " + expression + "; exit $LASTEXITCODE";
+  const expression = [command, ...config.backend.args].map(quote).join(" ");
   const wrapped = await SandboxManager.wrapWithSandboxArgv(
-    windows ? windowsExpression : expression,
-    windows ? "powershell" : "/bin/sh", undefined, undefined, workspace,
+    windows ? "" : expression,
+    windows ? { exe: command, args: config.backend.args } : "/bin/sh", undefined, undefined, workspace,
   );
+  if (windows) {
+    // The runtime's shell-shaped API appends one command argument. Native stdio
+    // servers need direct handle inheritance, not PowerShell's text pipeline.
+    if (wrapped.argv.pop() !== "") throw new Error("Unexpected Windows sandbox command argument.");
+    const separator = wrapped.argv.indexOf("--");
+    if (separator < 0 || wrapped.argv[separator + 1] !== command) throw new Error("Unexpected Windows sandbox launcher arguments.");
+    wrapped.argv.splice(separator, 0, ...Object.entries(env).flatMap(([key, value]) => ["--env", `${key}=${value}`]));
+  }
   const [executable, ...args] = wrapped.argv;
   if (!executable) throw new Error("Sandbox did not return a launcher.");
   const proxyEnv: Record<string, string> = {};
