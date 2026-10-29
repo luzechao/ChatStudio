@@ -112,6 +112,12 @@ for Windows DLL loading and redirects `TEMP`/`TMP` to the project, without
 passing through host user-profile paths or credentials. Windows profile,
 home-drive and application-data variables point to project-owned directories;
 RubyGems requires these even for local Measure metadata updates.
+Ruby Measure XML updates on Windows use OpenStudio 3.11's supported `classic
+measure -u` command because the new C++ MeasureManager crashes while initializing
+Ruby in this environment. This still loads the Measure and regenerates its
+metadata; Python Measures, workflow execution and EnergyPlus use the current CLI.
+The classic command is deprecated upstream, so this compatibility patch is tied
+to the pinned SDK version.
 Linux
 builds need Bubblewrap, socat, patchelf and enabled Ubuntu deb-src repositories;
 CI bundles their required files and source rather than requiring users to install

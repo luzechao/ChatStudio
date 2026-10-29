@@ -239,7 +239,7 @@ for (const directory of ["openstudio", "python-runtime", "measures", "gems"]) aw
 await writeFile(path.join(bundle, "manifest.json"), JSON.stringify({
   schema: 1, platform: process.platform, arch: process.arch, openstudio: "3.11.0", energyplus: "25.2.0",
   python: "3.13.18", ruby: "3.2.2", mcpRevision, archives, measures,
-  ...(windows ? { sandboxRevision, sandboxStdinPatch: 1, pythonNamedPipeWakeupPatch: 1, mcpMeasureSyntaxPatch: 1, mcpChildEnvironmentPatch: 1 } : {}),
+  ...(windows ? { sandboxRevision, sandboxStdinPatch: 1, pythonNamedPipeWakeupPatch: 1, mcpMeasureSyntaxPatch: 1, mcpChildEnvironmentPatch: 1, mcpRubyMetadataPatch: 1 } : {}),
 }, null, 2));
 await writeFile(path.join(bundle, "licenses/README.txt"),
   "Third-party components retain their upstream licenses. OpenStudio(R), EnergyPlus, Python, Ruby/gems and Python packages retain license files in their respective directories. ComStock/Common and ripgrep notices are in this directory. gbXML assets are not distributed. Linux socat is GPL-2.0-or-later; corresponding source is available from Ubuntu's source archive (apt source socat). Bubblewrap source is available from Ubuntu's source archive (apt source bubblewrap).\n");

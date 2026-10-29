@@ -59,6 +59,8 @@ export async function patchWindowsMeasureSyntax(sitePackages) {
       '[os.environ["OPENSTUDIO_CLI"], str(Path(os.environ["OPENSTUDIO_CLI"]).parents[2] / "ruby-driver.rb"), "-c", str(script_path)],'],
     ['["python3", "-c", f"compile({code!r}, {str(script_path)!r}, \'exec\')"],',
       '[sys.executable, "-I", "-c", f"compile({code!r}, {str(script_path)!r}, \'exec\')"],'],
+    ['["openstudio", "measure", "-u", str(staged_measure)]',
+      '["openstudio", "classic", "measure", "-u", str(staged_measure)]'],
   ];
   for (const [before, after] of replacements) {
     if (source.includes(after)) continue;
