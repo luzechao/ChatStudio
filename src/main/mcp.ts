@@ -7,6 +7,7 @@ import { prepareSandbox } from "./sandbox.js";
 
 export class OpenStudioBackend {
   private client?: Client;
+  private diagnostics = "";
   tools: Tool[] = [];
 
   constructor(private emit: (event: AgentEvent) => void) {}
@@ -16,8 +17,8 @@ export class OpenStudioBackend {
     try {
       const { warnings, ...launch } = await prepareSandbox(config, privateRoot);
       const transport = new StdioClientTransport({ ...launch, stderr: "pipe", maxBufferSize: 2 * 1024 * 1024 });
-      let diagnostics = "";
-      transport.stderr?.on("data", (chunk: Buffer) => { diagnostics = (diagnostics + chunk.toString()).slice(-4000); });
+      this.diagnostics = "";
+      transport.stderr?.on("data", (chunk: Buffer) => { this.diagnostics = (this.diagnostics + chunk.toString()).slice(-8000); });
       const client = new Client({ name: "ChatStudio", version: "0.1.0" });
       this.client = client;
       client.onclose = () => {
@@ -41,7 +42,7 @@ export class OpenStudioBackend {
         } while (cursor);
         if (!this.tools.length) throw new Error("Backend registered no tools. Check native SDK and Python dependencies.");
       } catch (error) {
-        throw new Error(`Native MCP startup failed: ${error instanceof Error ? error.message : String(error)}${diagnostics ? `\n${diagnostics}` : ""}`);
+        throw new Error(`Native MCP startup failed: ${error instanceof Error ? error.message : String(error)}${this.diagnostics ? `\n${this.diagnostics}` : ""}`);
       }
       this.emit({
         type: "backend", connected: true, tools: this.tools.length,
@@ -65,7 +66,11 @@ export class OpenStudioBackend {
 
   async call(name: string, args: Record<string, unknown>, signal?: AbortSignal) {
     if (!this.client || !this.tools.some((tool) => tool.name === name)) throw new Error(`Tool is unavailable: ${name}`);
-    return this.client.callTool({ name, arguments: args }, undefined, { signal, timeout: 120_000 });
+    try {
+      return await this.client.callTool({ name, arguments: args }, undefined, { signal, timeout: 120_000 });
+    } catch (error) {
+      throw new Error(`Native MCP tool ${name} failed: ${error instanceof Error ? error.message : String(error)}${this.diagnostics ? `\n${this.diagnostics}` : ""}`, { cause: error });
+    }
   }
 
   async disconnect(): Promise<void> {

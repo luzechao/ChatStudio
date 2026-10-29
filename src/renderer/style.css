@@ -38,7 +38,7 @@ aside { width: 272px; flex-shrink: 0; background: var(--sidebar); padding: 30px 
 .brand strong { font-size: 20px; letter-spacing: -.5px; }
 .brand small { display: block; font-size: 8px; letter-spacing: 1.1px; margin-top: 5px; }
 .logo { width: 37px; height: 37px; flex-shrink: 0; }
-.new-chat { text-align: left; }
+.new-chat { text-align: center; }
 .section-label { font-size: 10px; letter-spacing: 1.8px; color: var(--muted); margin: 34px 0 16px; }
 .project { font-size: 14px; margin-bottom: 15px; overflow-wrap: anywhere; }
 .engine { font-size: 13px; display: flex; align-items: center; gap: 9px; }
@@ -103,7 +103,7 @@ p { color: var(--muted); line-height: 1.75; font-size: 14px; }
 .suggestions button { display: flex; justify-content: space-between; background: var(--surface); text-align: left; font-size: 13px; padding: 17px; }
 .suggestions span { color: var(--accent); }
 footer { padding: 16px 35px 22px; }
-form { display: flex; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 13px; gap: 8px; align-items: flex-end; }
+form { display: flex; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 13px; gap: 8px; align-items: center; }
 form textarea { border: 0; background: transparent; resize: none; min-height: 52px; max-height: 170px; outline: none; }
 footer small { display: block; margin-top: 10px; font-size: 10px; }
 .primary { color: var(--accent-ink); background: var(--accent-fill); border-color: var(--accent-fill); font-weight: 600; }

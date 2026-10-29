@@ -278,7 +278,7 @@ export function App() {
         </div>)}
       </section>}
       <div className="sidebar-bottom">
-        <button disabled={viewerBusy || networkBusy} onClick={() => setSettings(!settings)}>{settings ? "Close settings" : "Settings"}</button>
+        <button disabled={viewerBusy || networkBusy} onClick={() => setSettings(!settings)}>{settings ? "Close Settings" : "Settings"}</button>
         <small>Desktop preview / 0.1.0</small>
       </div>
     </aside>

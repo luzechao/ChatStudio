@@ -125,6 +125,7 @@ test("Electron agent streams from a local OpenAI-compatible host and reports pro
     await page.getByRole("heading", { name: "Project A", exact: true }).waitFor();
     await page.getByRole("cell", { name: path.join("inputs", "example.osm"), exact: true }).waitFor();
     await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Close Settings", exact: true }).waitFor();
     await page.getByLabel("Provider", { exact: true }).selectOption("chatstudio-custom");
     await page.getByLabel("Model / deployment name", { exact: true }).fill("diagnostic");
     await page.getByLabel("API base URL", { exact: true }).fill("invalid");
@@ -137,6 +138,30 @@ test("Electron agent streams from a local OpenAI-compatible host and reports pro
     await page.getByLabel("API key", { exact: true }).fill("synthetic-local-key");
     await page.getByRole("button", { name: "Open chat", exact: true }).click();
     await page.getByRole("textbox", { name: "Message", exact: true }).fill("Say hello.");
+    for (const width of [1200, 800]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const height of [76, 150]) {
+        const alignment = await page.evaluate((height) => {
+          const textarea = document.querySelector("footer textarea");
+          textarea.style.height = `${height}px`;
+          const input = textarea.getBoundingClientRect();
+          const button = document.querySelector("footer form button").getBoundingClientRect();
+          const newChat = document.querySelector(".new-chat");
+          const text = document.createRange();
+          text.selectNodeContents(newChat);
+          const textBox = text.getBoundingClientRect();
+          const newChatBox = newChat.getBoundingClientRect();
+          return {
+            composerOffset: Math.abs(input.y + input.height / 2 - button.y - button.height / 2),
+            newChatOffset: Math.abs(newChatBox.x + newChatBox.width / 2 - textBox.x - textBox.width / 2),
+          };
+        }, height);
+        assert.ok(alignment.composerOffset < 1, JSON.stringify(alignment));
+        assert.ok(alignment.newChatOffset < 1, JSON.stringify(alignment));
+      }
+    }
+    await page.locator("footer textarea").evaluate((element) => { element.style.removeProperty("height"); });
+    await page.setViewportSize({ width: 1200, height: 900 });
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await page.getByText("Hello from the local host.", { exact: true }).waitFor();
     assert.equal(requests.length, 6);
