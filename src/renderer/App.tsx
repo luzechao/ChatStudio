@@ -409,9 +409,7 @@ export function App() {
               <button key={text} onClick={() => setInput(text)}>{text}<span>↗</span></button>)}</div>
           </div>}
           {(archive?.messages ?? messages).map((m, i) => <article key={i} className={`message ${m.role}`} aria-label={m.role === "user" ? "Your message" : "ChatStudio reply"}>
-            <div className="speaker">{m.role === "user" ? <span className="message-avatar" aria-hidden="true">Y</span>
-              : <img className="message-avatar" src={logoUrl} alt="" />}
-              {m.role === "user" ? "You" : "ChatStudio"}</div>
+            <div className="speaker">{m.role === "user" ? "You" : "ChatStudio"}</div>
             <div className="message-text">{m.text
               ? m.role === "assistant" ? <MessageContent text={m.text} /> : m.text
               : <span className="message-placeholder">{busy ? "Thinking..." : "No text returned. Check diagnostics above."}</span>}</div>

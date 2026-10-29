@@ -111,9 +111,7 @@ footer small { display: block; margin-top: 10px; font-size: 10px; }
 .message { margin-bottom: 28px; min-width: 0; }
 .message.user { margin-left: auto; width: fit-content; max-width: 85%; }
 .speaker { display: flex; align-items: center; gap: 8px; color: var(--accent); font-size: 12px; font-weight: 600; margin-bottom: 10px; }
-.message-avatar { display: inline-grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: var(--accent-fill); color: var(--accent-ink); }
 .user .speaker { color: var(--text); justify-content: flex-end; }
-.user .message-avatar { background: var(--button); color: var(--text); }
 .message-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.8; }
 .user .message-text { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 16px 3px 16px 16px; padding: 14px 18px; }
 .assistant .message-text { background: var(--surface); border: 1px solid var(--border); border-radius: 3px 16px 16px 16px; padding: 18px 22px; }

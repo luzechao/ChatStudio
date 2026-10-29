@@ -123,6 +123,8 @@ test("Electron agent streams from a local OpenAI-compatible host and reports pro
     await page.getByRole("button", { name: "Open chat", exact: true }).click();
     await page.getByRole("alert").filter({ hasText: "valid HTTP or HTTPS URL" }).waitFor();
     await page.getByLabel("API base URL", { exact: true }).fill(baseUrl);
+    await page.getByLabel("API base URL", { exact: true }).press("Tab");
+    await page.getByText(/^(Optional: save with OS encryption|Secure OS encryption is unavailable)/).waitFor();
     await page.getByLabel("API key", { exact: true }).fill("synthetic-local-key");
     await page.getByRole("button", { name: "Open chat", exact: true }).click();
     await page.getByRole("textbox", { name: "Message", exact: true }).fill("Say hello.");
@@ -149,9 +151,12 @@ test("Electron agent streams from a local OpenAI-compatible host and reports pro
     assert.equal(await reply.locator('input[type="checkbox"]:checked:disabled').count(), 1);
     assert.equal(await reply.locator("blockquote").innerText(), "Review assumptions.");
     assert.equal(await reply.locator(".message-text").locator("a, img, script").count(), 0);
-    assert.equal(await reply.locator("img.message-avatar").evaluate((image) => image.complete && image.naturalWidth > 0), true);
+    assert.equal(await reply.locator(".speaker").innerText(), "ChatStudio");
+    assert.equal(await reply.locator(".speaker").locator("img, .message-avatar").count(), 0);
     assert.equal(await page.evaluate(() => window.markdownExecuted), undefined);
     const user = page.getByRole("article", { name: "Your message", exact: true }).last();
+    assert.equal(await user.locator(".speaker").innerText(), "You");
+    assert.equal(await user.locator(".speaker").locator("img, .message-avatar").count(), 0);
     assert.equal(await user.locator(".message-text").innerText(), "**My question**\nKeep this plain text.");
     assert.equal(await user.locator("strong").count(), 0);
     const visual = () => page.evaluate(() => {

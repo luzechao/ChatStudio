@@ -1,10 +1,11 @@
-import { mkdir, realpath, stat, readdir } from "node:fs/promises";
+import { mkdir, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { SandboxManager, type SandboxRuntimeConfig } from "@carderne/sandbox-runtime";
 import type { AppConfig } from "../shared/contracts.js";
 import { validateConfig } from "./config.js";
+import { protectPrivateData } from "./private-data.js";
 
 export function sandboxPolicy(workspace: string, readRoots: string[], privateRoot: string, internetAccess = false): SandboxRuntimeConfig {
   return {
@@ -52,15 +53,10 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
   const rg = helperRoot ? path.join(helperRoot, process.platform === "win32" ? "rg.exe" : "rg") : "rg";
   const policy = sandboxPolicy(workspace, [path.dirname(command), ...readRoots], privatePath, config.internetAccess);
   if (process.platform === "win32") {
-    // Existing explicit child grants can precede inherited denies on Windows.
-    const denyChildren = async (directory: string): Promise<void> => {
-      for (const entry of await readdir(directory, { withFileTypes: true })) {
-        const child = path.join(directory, entry.name);
-        policy.filesystem.denyRead.push(child);
-        if (entry.isDirectory() && !entry.isSymbolicLink()) await denyChildren(child);
-      }
-    };
-    await denyChildren(privatePath);
+    await protectPrivateData(privatePath);
+    // Keep this owner-only ACL protected; the alpha runtime recomposes denies as unprotected ACLs.
+    policy.filesystem.denyRead = [homedir()];
+    policy.filesystem.denyWrite = [];
   }
   policy.ripgrep = { command: rg };
   if (helperRoot && process.platform === "linux") {

@@ -380,6 +380,10 @@ not the MCP server's current building model. All sessions are ephemeral in this 
   runtime files must stay outside the signed-in user's profile: Ruby's path
   canonicalization cannot traverse profile ancestors denied by the alpha
   sandbox. Unsupported paths are rejected rather than weakening home protection.
+  Private application data uses protected owner/System/Administrators-only
+  Windows ACLs, including existing children, so new credentials and conversation
+  files never inherit access for the sandbox account. These permissions persist
+  after disconnect; failures to apply them refuse execution.
   Native viewers disconnect the backend before inspection to avoid overlapping
   account-wide sandbox permissions; reconnect afterward. Windows support is alpha.
 

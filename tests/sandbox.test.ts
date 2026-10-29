@@ -41,6 +41,8 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
       out.secretReadDenied = blocked(()=>fs.readFileSync(${JSON.stringify(secret)}));
       out.privateReadDenied = blocked(()=>fs.readFileSync(${JSON.stringify(path.join(privateRoot, "secret.txt"))}));
       out.newPrivateReadDenied = blocked(()=>fs.readFileSync(${JSON.stringify(path.join(privateRoot, "new-secret.txt"))}));
+      out.newNestedPrivateReadDenied = blocked(()=>fs.readFileSync(${JSON.stringify(path.join(privateRoot, "new-directory", "secret.txt"))}));
+      out.privateWriteDenied = blocked(()=>fs.writeFileSync(${JSON.stringify(path.join(privateRoot, "secret.txt"))}, 'no'));
       out.outsideWriteDenied = blocked(()=>fs.writeFileSync(${JSON.stringify(outsideFile)}, 'no'));
       out.environmentScrubbed = !process.env.CHATSTUDIO_TEST_SECRET;
       const child=spawnSync(process.execPath,['-e',${JSON.stringify(`try {require('fs').readFileSync(${JSON.stringify(secret)});process.exit(1)}catch(e){process.exit(${JSON.stringify(deniedCodes)}.includes(e.code)?0:2)}`)}],{encoding:'utf8'});
@@ -58,6 +60,8 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
       workspace, backend: { command: process.execPath, args: ["--preserve-symlinks-main", script], readRoots: [], environment: {} },
     }, privateRoot);
     await writeFile(path.join(privateRoot, "new-secret.txt"), "created-after-sandbox-initialization");
+    await mkdir(path.join(privateRoot, "new-directory"));
+    await writeFile(path.join(privateRoot, "new-directory", "secret.txt"), "nested-after-initialization");
     const result = await new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
       const child = spawn(launch.command, launch.args, launch);
       let stdout = ""; let stderr = "";
@@ -70,6 +74,7 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
     await assert.rejects(stat(outsideFile), { code: "ENOENT" });
     assert.deepEqual(JSON.parse(result.stdout), {
       workspaceWrite: true, secretReadDenied: true, privateReadDenied: true, newPrivateReadDenied: true,
+      newNestedPrivateReadDenied: true, privateWriteDenied: true,
       outsideWriteDenied: true, environmentScrubbed: true, childReadDenied: true, networkDenied: true,
     });
   } finally {
