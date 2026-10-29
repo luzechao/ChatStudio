@@ -26,9 +26,11 @@ function payload(value: unknown): Record<string, unknown> {
   return record;
 }
 
-async function run(command: string, args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): Promise<string> {
+async function run(command: string, args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv; input?: string } = {}): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, options);
+    const { input, ...launch } = options;
+    const child = spawn(command, args, { ...launch, timeout: 60_000 });
+    if (input !== undefined) child.stdin.end(input);
     let stdout = ""; let stderr = "";
     child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
     child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
@@ -56,6 +58,18 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
     assert.match(ruby, /BUNDLED_RUBY=3\.2\.2/);
     assert.match(ruby, /ASHRAE9012019/);
     await SandboxManager.reset();
+
+    if (process.platform === "win32") {
+      const { warnings: _pythonWarnings, ...pythonLaunch } = await prepareSandbox({
+        ...config, backend: { ...config.backend,
+          command: path.join(root, "bin/python3.exe"),
+          args: ["-c", 'import sys; print("PYTHON_STDIO=" + sys.stdin.readline().strip(), flush=True)'] },
+      }, privateRoot);
+      assert.match(await run(pythonLaunch.command, pythonLaunch.args, { ...pythonLaunch, input: "roundtrip\n" }),
+        /PYTHON_STDIO=roundtrip/);
+      console.log("Windows sandbox Python stdin/stdout roundtrip passed.");
+      await SandboxManager.reset();
+    }
 
     await backend.connect(config, privateRoot);
     assert.equal(backend.tools.length, 207);
