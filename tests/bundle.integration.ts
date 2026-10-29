@@ -26,13 +26,23 @@ function payload(value: unknown): Record<string, unknown> {
   return record;
 }
 
-async function run(command: string, args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv; input?: string } = {}): Promise<string> {
+async function run(command: string, args: string[], options: {
+  cwd?: string; env?: NodeJS.ProcessEnv; input?: string; replyAfterOutput?: { marker: string; input: string };
+} = {}): Promise<string> {
   return new Promise((resolve, reject) => {
-    const { input, ...launch } = options;
+    const { input, replyAfterOutput, ...launch } = options;
     const child = spawn(command, args, { ...launch, timeout: 60_000 });
-    if (input !== undefined) child.stdin.end(input);
+    if (replyAfterOutput) child.stdin.write(input);
+    else if (input !== undefined) child.stdin.end(input);
     let stdout = ""; let stderr = "";
-    child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    let replied = false;
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+      if (replyAfterOutput && !replied && stdout.includes(replyAfterOutput.marker)) {
+        replied = true;
+        child.stdin.end(replyAfterOutput.input);
+      }
+    });
     child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
     child.on("error", reject);
     child.on("close", (code) => code === 0 ? resolve(stdout) : reject(new Error(`${command} exited ${code}\n${stdout}\n${stderr}`)));
@@ -67,7 +77,8 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
           command: path.join(root, "bin/python3.exe"),
           args: [pythonProbe, 'literal "quoted" value', "", "trailing\\"] },
       }, privateRoot);
-      const python = await run(pythonLaunch.command, pythonLaunch.args, { ...pythonLaunch, input: `roundtrip\n${"x".repeat(20000)}\n` });
+      const python = await run(pythonLaunch.command, pythonLaunch.args, { ...pythonLaunch, input: "roundtrip\n",
+        replyAfterOutput: { marker: "PYTHON_STDIO=roundtrip", input: `${"x".repeat(20000)}\n` } });
       assert.match(python, /PYTHON_STDIO=roundtrip/);
       assert.match(python, /REMAINING_STDIN=20001/);
       assert.ok(python.includes(`['literal "quoted" value', '', 'trailing\\\\']`), python);
@@ -75,7 +86,8 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
       await SandboxManager.reset();
     }
 
-    await backend.connect(config, privateRoot);
+    await backend.connect(process.platform === "win32"
+      ? { ...config, backend: { ...config.backend, args: ["--chatstudio-startup-trace"] } } : config, privateRoot);
     assert.equal(backend.tools.length, 207);
     const call = async (name: string, args: Record<string, unknown>) => payload(await backend.call(name, args));
     const pythonScript = await call("run_sandboxed_script", { language: "Python",

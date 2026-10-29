@@ -17,12 +17,19 @@ def execute(executable, arguments):
 if command == "openstudio-mcp":
     sys.argv[0] = "openstudio-mcp"
     import runpy
+    if sys.argv[1:] == ["--chatstudio-startup-trace"]:
+        import faulthandler
+        import time
+        sys.argv.pop()
+        faulthandler.dump_traceback_later(20)
+        print(f"[ChatStudio] Startup trace enabled at {time.monotonic():.3f}.", file=sys.stderr, flush=True)
     if os.name == "nt":
         print("[ChatStudio] Loading native Python MCP modules.", file=sys.stderr, flush=True)
     from mcp_server.server import main, mcp
     runpy.run_path(str(root / "script-tool.py"))["register_script_tool"](mcp, root)
     if os.name == "nt":
-        print("[ChatStudio] Starting native MCP stdio server.", file=sys.stderr, flush=True)
+        import time
+        print(f"[ChatStudio] Starting native MCP stdio server at {time.monotonic():.3f}.", file=sys.stderr, flush=True)
     main()
 elif command == "python3":
     execute(python, sys.argv[1:])
