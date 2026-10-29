@@ -111,7 +111,7 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
         "import os",
         "import sys",
         "assert sys.flags.utf8_mode == 1",
-        'unicode_output = subprocess.run([os.environ["OPENSTUDIO_CLI"], "-e", \'puts "caf\\\\u00e9"\'], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=10)',
+        'unicode_output = subprocess.run([os.environ["OPENSTUDIO_CLI"], "-e", \'puts "caf" + 233.chr(Encoding::UTF_8)\'], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=10)',
         'assert unicode_output.returncode == 0, unicode_output.stderr',
         'assert "caf\\u00e9" in unicode_output.stdout, repr(unicode_output.stdout)',
         'child_env = sandbox.build_env(pathlib.Path.cwd())',
