@@ -10,27 +10,27 @@ export async function bundledConfig(root: string, workspace: string): Promise<Ap
     || !("arch" in manifest) || manifest.arch !== process.arch) {
     throw new Error("Native runtime manifest does not match this platform/architecture.");
   }
-  const cli = path.join(root, "openstudio/bin/openstudio");
-  const command = path.join(root, "bin/openstudio-mcp");
-  for (const file of [cli, command, path.join(root, "python-runtime/bin/python3"),
-    path.join(root, "openstudio/EnergyPlus/energyplus"), path.join(root, "Gemfile.lock")]) await access(file);
+  const windows = process.platform === "win32";
+  const cli = path.join(root, windows ? "openstudio/bin/openstudio.exe" : "openstudio/bin/openstudio");
+  const command = path.join(root, windows ? "python-runtime/python.exe" : "bin/openstudio-mcp");
+  const energyplus = path.join(root, `openstudio/EnergyPlus/energyplus${windows ? ".exe" : ""}`);
+  for (const file of [cli, command, path.join(root, windows ? "python-runtime/python.exe" : "python-runtime/bin/python3"),
+    energyplus, path.join(root, "Gemfile.lock")]) await access(file);
   await mkdir(workspace, { recursive: true });
   const gemHome = path.join(root, "gems/ruby/3.2.0");
   return validateConfig({
     workspace, bundledRuntime: true,
     backend: {
-      command, args: [], readRoots: [root],
+      command, args: windows ? ["-I", path.join(root, "launch.py"), "openstudio-mcp"] : [], readRoots: [root],
       environment: {
         OPENSTUDIO_CLI: cli,
-        ENERGYPLUS_EXE_PATH: path.join(root, "openstudio/EnergyPlus/energyplus"),
+        ENERGYPLUS_EXE_PATH: energyplus,
         OSCLI_GEMFILE: path.join(root, "Gemfile"),
         OSCLI_GEM_PATH: path.join(root, "gems"),
         GEM_HOME: gemHome, GEM_PATH: gemHome,
         SKILLS_DIR: path.join(root, "skills"),
         COMMON_MEASURES_DIR: path.join(root, "measures/common"),
         COMSTOCK_MEASURES_DIR: path.join(root, "measures/comstock"),
-        GBXML_MEASURES_DIR: path.join(root, "measures/gbxml"),
-        GBXML_SEED_OSM: path.join(root, "seed_empty.osm"),
       },
     },
   });

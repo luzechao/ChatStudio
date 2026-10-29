@@ -6,17 +6,23 @@ A local-first desktop building energy modeling assistant. Electron + React suppl
 the interface; Pi supplies the agent loop; native OpenStudio MCP supplies tools and
 workflow guidance. Modeling and simulation use native desktop runtimes.
 
-**Status: unsigned preview.** The self-contained macOS ARM64 installer includes
-native SDK/CLI, EnergyPlus, Python, Ruby/gems, and Measure assets. Cross-platform
-CI builds desktop-only previews; native bundling has not been deployed to CI.
+**Status: unsigned native preview.** CI assembles self-contained macOS ARM64,
+Windows x64, and Ubuntu 24.04-compatible Linux x64 installers, including native
+SDK/CLI, EnergyPlus, Python, Ruby/gems, Common/ComStock Measures and ripgrep.
+gbXML assets are omitted. Windows sandbox support is experimental and requires
+one-time administrator/UAC-approved setup in Settings. Linux requires enabled
+unprivileged user namespaces; no Docker is used.
 
-Download desktop-only previews from
-[GitHub Releases](https://github.com/luzechao/ChatStudio/releases).
-These installers require an external native runtime; Windows native modeling
-is not yet enabled. The local self-contained Apple Silicon build is not
-published while third-party redistribution review is pending, including the
-gbXML source repository's missing repository-level license.
-See each release's notes for limitations.
+See [GitHub Releases](https://github.com/luzechao/ChatStudio/releases) for
+downloads and each version's limitations. Older v0.1.1 downloads are desktop-only.
+
+## License
+
+Copyright 2026 ChatStudio contributors.
+ChatStudio's original code and assets are licensed under the
+[Apache License 2.0](./LICENSE). Third-party software, runtimes, and Measures
+remain subject to their own licenses; this license does not grant additional
+rights to those components.
 
 ## What works
 
@@ -28,14 +34,15 @@ See each release's notes for limitations.
 - Light, Dark, and Follow system appearance options in Settings. Follow system
   is the default and updates live; your choice is saved across restarts.
 - A separate Electron utility process for the Pi agent and MCP client.
-- Native MCP execution wrapped in Anthropic Sandbox Runtime, with no unsandboxed fallback.
+- Native MCP execution wrapped in pi-sandbox's `@carderne/sandbox-runtime`,
+  with no unsandboxed fallback.
 - Tool discovery/search rather than placing all 206 tool schemas in every model request.
 - Explicit approval for backend tools, including reads, with optional per-tool
   session permission and revocation.
 - Native OpenStudio 3.11.0 Python model creation, inspection, and OSM saving.
-- Local macOS bundle: native CLI, embedded Ruby/gems, Python/MCP, EnergyPlus,
-  common/ComStock/gbXML Measure assets, and an offline design-day simulation.
-- Discovery of all 206 upstream tools and all 18 workflow skills.
+- Native bundle: CLI, embedded Ruby/gems, Python/MCP, EnergyPlus,
+  Common/ComStock Measure assets, and an offline design-day simulation.
+- Discovery of upstream tools; gbXML-specific tools need external assets.
 - Project workspace/file listing and private, project-specific conversation history.
 - Read-only 3D OSM viewer, EnergyPlus SQL results dashboard, and isolated HTML reports.
 - Project/runtime settings and conversations on disk; optional OS-encrypted API key storage.
@@ -45,38 +52,44 @@ representative Measure/simulation workflows, not every ComStock, reporting, or
 gbXML operation. Skills are retrieved through MCP tools; their presence does not
 imply their complete workflows are runnable.
 
-## Self-contained macOS Apple Silicon preview
+## Self-contained native preview
 
 The local native build is under `release-native/mac-arm64/ChatStudio.app`, with
 DMG and ZIP installers alongside it. Users of this build do not need to install
 Python, OpenStudio, Ruby, gems, EnergyPlus, or the included Measure collections.
-It is unsigned and not notarized; public distribution still needs signing and a
-third-party license review.
+It is unsigned and not notarized. CI builds equivalent Windows and Linux
+installers. All third-party components retain their own licenses and notices.
 
 Included runtimes and assets:
 
 | Component | Version / source |
 |---|---|
-| OpenStudio SDK/CLI | Official 3.11.0 ARM64 distribution + Python SDK wheel |
+| OpenStudio SDK/CLI | Official 3.11.0 platform distribution + Python SDK wheel |
 | EnergyPlus | 25.2.0, supplied by the official OpenStudio distribution |
 | Python for MCP/tests | Relocatable CPython 3.13.18, python-build-standalone 20261026 |
 | Ruby | OpenStudio CLI's embedded Ruby 3.2.2, not a separate system installation |
 | Ruby gems | Extracted from the official CLI, including standards 0.8.5, extension 0.9.7, workflow 2.5.0 |
-| MCP / skills | Pinned upstream revision; all 206 tools and 18 skills discovered |
+| MCP / skills | Pinned upstream revision; gbXML workflow assets omitted |
 | Common Measures | v0.12.3, pinned commit |
 | ComStock Measures | 2025-3, pinned commit |
-| gbXML Measures / seed | v1.2.4, pinned commit |
+| ripgrep | 15.2.0, checksummed platform binary |
+| Linux sandbox helpers | Bubblewrap, socat, required non-system libraries, notices and corresponding source |
 
 Build and verify locally:
 
 ```sh
 npm run setup:bundle        # Downloads/builds only inside .runtime/
 npm run test:bundle         # Real SDK, Ruby/Python Measures, native simulation
-npm run package:native     # Local macOS ARM64 .app + DMG + ZIP
+npm run package:native     # Native installer for the current supported platform
 npm run test:relocated     # Copies app to a path with spaces; native resources read-only
 ```
 
-The setup uses checksummed runtime archives, fixed source commits, exact Python
+Windows builds need MSVC (`cl`) to compile bundled command launchers. Linux
+builds need Bubblewrap, socat, patchelf and enabled Ubuntu deb-src repositories;
+CI bundles their required files and source rather than requiring users to install
+these tools. Standard OS libraries and kernel features remain prerequisites.
+
+The setup uses checksummed runtime archives, fixed source commits, pinned Python
 dependency versions, a Ruby dependency lock, and preserved upstream notices.
 It needs network access while assembling the bundle, but no downloads at runtime.
 Downloads and sources are cached locally. This is separate from `setup:native`,
@@ -301,8 +314,8 @@ Agent utility process (Pi, in-memory provider credentials)
 OS-sandboxed native MCP process and its descendants
     |
     +-- Native OpenStudio Python SDK
-    +-- OpenStudio CLI / Ruby / Measures [additional installation]
-    +-- EnergyPlus [additional installation]
+    +-- Included OpenStudio CLI / Ruby / Measures
+    +-- Included EnergyPlus
 ```
 
 Pi's built-in shell/file tools, arbitrary extensions, project instructions, and
@@ -337,11 +350,15 @@ not the MCP server's current building model. All sessions are ephemeral in this 
   selected Sandbox Runtime release. It is defense in depth, not a VM boundary.
 - **macOS ARM64:** actual filesystem, network, child-process, and secret-environment
   denial tests passed, including a real native SDK/MCP workflow.
-- **Linux:** implementation targets Sandbox Runtime's bubblewrap backend, but has
-  not been validated here. Install its required dependencies and run the gates.
-- **Windows:** UI architecture is portable, but native backend launch intentionally
-  refuses execution until the Windows confinement/launch adapter is validated.
-  There is no automatic insecure mode.
+- **Linux:** Bubblewrap/socat/ripgrep are bundled; unprivileged user namespaces
+  must be available. The runtime depends on Ubuntu 24.04-compatible system libraries.
+- **Windows:** pi-sandbox's runtime uses an isolated local account, restricted
+  token/job object, filesystem ACLs and Windows Filtering Platform. Select
+  **Set up Windows sandbox** in Settings once (UAC approval). Installation
+  changes machine account/network configuration and is never performed silently.
+  Backend connection verifies confinement; failure refuses execution.
+  Native viewers disconnect the backend before inspection to avoid overlapping
+  account-wide sandbox permissions; reconnect afterward. Windows support is alpha.
 
 Do not grant all of your home directory or place provider secrets in projects or
 runtime folders. This preview is not certified for executing hostile third-party

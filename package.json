@@ -1,7 +1,8 @@
 {
   "name": "chatstudio",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "A local-first desktop building energy modeling assistant.",
   "author": {
     "name": "ChatStudio contributors",
@@ -21,14 +22,14 @@
     "test:viewers": "tsx --test tests/viewer.native.ts && node --test tests/viewer.integration.mjs",
     "test:provider": "node --test --test-concurrency=1 tests/provider.integration.mjs tests/credentials.integration.mjs",
     "package": "npm run build && electron-builder --publish never",
-    "package:native": "npm run setup:bundle && npm run build && electron-builder --config electron-builder.native.yml --mac --arm64 --publish never",
+    "package:native": "npm run setup:bundle && npm run build && electron-builder --config electron-builder.native.yml --publish never",
     "test:bundle": "tsx --test tests/bundle.integration.ts",
     "test:relocated": "node scripts/test-relocated-bundle.mjs",
     "test:package": "node --test tests/package.integration.mjs",
     "start": "electron ."
   },
   "dependencies": {
-    "@anthropic-ai/sandbox-runtime": "0.0.81",
+    "@carderne/sandbox-runtime": "0.0.77",
     "@earendil-works/pi-ai": "1.4.0",
     "@earendil-works/pi-coding-agent": "1.4.0",
     "@modelcontextprotocol/sdk": "1.32.2",

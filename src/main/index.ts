@@ -11,6 +11,7 @@ import { bundledConfig } from "./native-runtime.js";
 import { Projects } from "./projects.js";
 import { Credentials } from "./credentials.js";
 import { projectFile } from "./inspection.js";
+import { getWindowsSandboxUserStatus, installWindowsSandbox } from "@carderne/sandbox-runtime";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 let window: BrowserWindow | undefined;
@@ -30,7 +31,7 @@ const pending = new Map<string, { resolve: (value: unknown) => void; reject: (er
 function agentHost(): UtilityProcess {
   if (host) return host;
   const env: Record<string, string> = {};
-  for (const key of ["PATH", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "SystemRoot", "TEMP", "TMP", "LANG"]) {
+  for (const key of ["PATH", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "SystemRoot", "TEMP", "TMP", "LANG", "CHATSTUDIO_SANDBOX_HELPERS"]) {
     if (process.env[key]) env[key] = process.env[key];
   }
   host = utilityProcess.fork(path.join(here, "agent-host.js"), [privateRoot], { env, serviceName: "ChatStudio agent", stdio: "pipe" });
@@ -79,7 +80,7 @@ function rpc(request: HostRequest): Promise<unknown> {
 
 async function inspect(config: AppConfig, kind: InspectionKind, file: string): Promise<unknown> {
   const env: Record<string, string> = {};
-  for (const key of ["PATH", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "SystemRoot", "TEMP", "TMP", "LANG"]) {
+  for (const key of ["PATH", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "SystemRoot", "TEMP", "TMP", "LANG", "CHATSTUDIO_SANDBOX_HELPERS"]) {
     if (process.env[key]) env[key] = process.env[key];
   }
   const child = utilityProcess.fork(path.join(here, "inspection-host.js"), [], { env, serviceName: "ChatStudio viewer", stdio: "pipe" });
@@ -135,6 +136,7 @@ projects = new Projects(privateRoot);
 const credentials = new Credentials(privateRoot, safeStorage);
 const configPath = path.join(privateRoot, "config.json");
 const bundleRoot = path.join(process.resourcesPath, "native");
+if (app.isPackaged) process.env.CHATSTUDIO_SANDBOX_HELPERS = path.join(bundleRoot, "sandbox");
 let hasBundle = false;
 if (app.isPackaged) {
   try { await readFile(path.join(bundleRoot, "manifest.json")); hasBundle = true; }
@@ -168,10 +170,24 @@ const inspectFile = async (kind: InspectionKind, file: unknown) => {
   if (viewerRunning || projectChanging || promptRunning) throw new Error("Wait for the current operation before loading a viewer.");
   if (!projects.workspace || typeof file !== "string") throw new Error("Open a project and choose a file first.");
   viewerRunning = true;
-  try { return await inspect({ ...await loadConfig(), workspace: projects.workspace }, kind, file); }
+  try {
+    if (process.platform === "win32") await rpc({ type: "disconnect", id: randomUUID() });
+    return await inspect({ ...await loadConfig(), workspace: projects.workspace }, kind, file);
+  }
   finally { viewerRunning = false; }
 };
 const channels: Record<string, (...args: unknown[]) => unknown> = {
+  "sandbox:status": () => ({
+    windows: process.platform === "win32",
+    ready: process.platform !== "win32" || getWindowsSandboxUserStatus().provisioned,
+  }),
+  "sandbox:install": () => {
+    if (process.platform !== "win32") throw new Error("Windows sandbox setup is only available on Windows.");
+    if (promptRunning || projectChanging || viewerRunning) throw new Error("Wait for the current operation before sandbox setup.");
+    const result = installWindowsSandbox();
+    if (result.cancelled) throw new Error("Windows sandbox setup was cancelled. Native execution remains disabled.");
+    if (!result.user.provisioned) throw new Error("Windows sandbox setup did not provision the sandbox account.");
+  },
   "credential:load": (scope) => credentials.load(scope),
   "credential:save": (scope, apiKey) => credentials.save(scope, apiKey),
   "credential:forget": (scope) => credentials.forget(scope),
@@ -214,7 +230,7 @@ const channels: Record<string, (...args: unknown[]) => unknown> = {
   },
   "agent:catalog": () => rpc({ type: "catalog", id: randomUUID() }),
   "agent:connect": async (config) => {
-    if (promptRunning || projectChanging) throw new Error("Wait for the current operation before connecting.");
+    if (promptRunning || projectChanging || viewerRunning) throw new Error("Wait for the current operation before connecting.");
     projectChanging = true;
     try {
       const validated = validateConfig(config, true);
@@ -223,7 +239,7 @@ const channels: Record<string, (...args: unknown[]) => unknown> = {
     } finally { projectChanging = false; }
   },
   "agent:disconnect": async () => {
-    if (promptRunning || projectChanging) throw new Error("Wait for the current operation before disconnecting.");
+    if (promptRunning || projectChanging || viewerRunning) throw new Error("Wait for the current operation before disconnecting.");
     projectChanging = true;
     try { return await rpc({ type: "disconnect", id: randomUUID() }); }
     finally { projectChanging = false; }

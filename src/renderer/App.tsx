@@ -31,6 +31,8 @@ export function App() {
   const [projectBusy, setProjectBusy] = useState(true);
   const [viewerBusy, setViewerBusy] = useState(false);
   const [networkBusy, setNetworkBusy] = useState(false);
+  const [sandboxSetup, setSandboxSetup] = useState(false);
+  const [sandboxBusy, setSandboxBusy] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -52,6 +54,11 @@ export function App() {
     try { return { provider, baseUrl: validateCustomEndpoint({ baseUrl, model: "credential" }).baseUrl }; }
     catch { return null; }
   }, [provider, baseUrl]);
+
+  useEffect(() => {
+    void window.chatstudio.sandboxStatus().then((state) => setSandboxSetup(state.windows && !state.ready))
+      .catch((e: unknown) => setError(errorMessage(e)));
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -334,6 +341,15 @@ export function App() {
             onClick={() => void run(() => rememberCredential(false))}>Forget saved key</button>
         </div>
         <h2>Native OpenStudio MCP</h2>
+        {sandboxSetup && <div>
+          <p>Windows native execution requires one-time sandbox setup (administrator/UAC approval).
+            It creates an isolated account and network filters. Windows support is experimental.</p>
+          <button disabled={sandboxBusy || busy || connected || connecting || viewerBusy} onClick={() => {
+            setSandboxBusy(true);
+            void window.chatstudio.installSandbox().then(() => setSandboxSetup(false))
+              .catch((e: unknown) => setError(errorMessage(e))).finally(() => setSandboxBusy(false));
+          }}>{sandboxBusy ? "Setting up sandbox..." : "Set up Windows sandbox"}</button>
+        </div>}
         <p>{config.bundledRuntime
           ? "Bundled OpenStudio, EnergyPlus, Python, Ruby/gems, and Measure assets are ready. Choose a project and connect."
           : "Supply an installed MCP executable, its Python/SDK dependencies, and Measure assets."}</p>
@@ -356,7 +372,7 @@ export function App() {
         <label>Runtime environment (JSON object)<textarea disabled={connected || connecting || config.bundledRuntime} value={envText} onChange={(e) => setEnvText(e.target.value)} /></label>
         <small>Advanced runtime settings. Never put API keys here.</small>
         <div className="row actions">
-          <button className="primary" disabled={busy || networkBusy || credentialBusy || connecting || connected || projectBusy} onClick={() => void connect()}>{connecting ? "Connecting..." : "Connect local engine"}</button>
+          <button className="primary" disabled={viewerBusy || sandboxSetup || sandboxBusy || busy || networkBusy || credentialBusy || connecting || connected || projectBusy} onClick={() => void connect()}>{connecting ? "Connecting..." : "Connect local engine"}</button>
           <button disabled={busy || connecting || !connected} onClick={() => void run(() => window.chatstudio.disconnect())}>Disconnect</button>
           <button disabled={busy || networkBusy || credentialBusy || connecting || !apiKey || !selectedModel} onClick={() => void run(async () => {
             await saveSettings(); setSettings(false); setWorkspaceOpen(false); setArchive(null); setActiveTab("chat");

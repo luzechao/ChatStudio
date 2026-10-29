@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
+import { SandboxManager } from "@carderne/sandbox-runtime";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { AppConfig, AgentEvent } from "../shared/contracts.js";
 import { prepareSandbox } from "./sandbox.js";

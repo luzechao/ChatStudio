@@ -24,7 +24,7 @@ test("packaged desktop loads its isolated renderer and agent catalog without dev
     const config = await page.evaluate(() => window.chatstudio.loadConfig());
     if (process.env.CHATSTUDIO_EXPECT_BUNDLE === "1") {
       assert.equal(config.bundledRuntime, true);
-      assert.ok(config.backend.command.includes(`${path.sep}native${path.sep}bin${path.sep}`));
+      assert.ok(config.backend.command.includes(`${path.sep}native${path.sep}`));
       await page.evaluate(async (input) => {
         const config = await window.chatstudio.loadConfig();
         await window.chatstudio.saveConfig({ ...config, workspace: input,

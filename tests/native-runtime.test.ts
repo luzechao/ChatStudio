@@ -15,14 +15,16 @@ test("bundled settings derive relocatable paths and reject mismatched/incomplete
     await assert.rejects(bundledConfig(root, path.join(base, "project")), /manifest/);
     await writeFile(path.join(root, "manifest.json"), JSON.stringify({ schema: 1, platform: process.platform, arch: process.arch }));
     await assert.rejects(bundledConfig(root, path.join(base, "project")), { code: "ENOENT" });
-    for (const file of ["openstudio/bin/openstudio", "bin/openstudio-mcp", "python-runtime/bin/python3",
-      "openstudio/EnergyPlus/energyplus", "Gemfile.lock"]) {
+    const windows = process.platform === "win32";
+    for (const file of [windows ? "openstudio/bin/openstudio.exe" : "openstudio/bin/openstudio",
+      windows ? "python-runtime/python.exe" : "bin/openstudio-mcp", windows ? "python-runtime/python.exe" : "python-runtime/bin/python3",
+      windows ? "openstudio/EnergyPlus/energyplus.exe" : "openstudio/EnergyPlus/energyplus", "Gemfile.lock"]) {
       await mkdir(path.dirname(path.join(root, file)), { recursive: true });
       await writeFile(path.join(root, file), "");
     }
     const config = await bundledConfig(root, path.join(base, "project"));
     assert.equal(config.bundledRuntime, true);
-    assert.equal(config.backend.command, path.join(root, "bin/openstudio-mcp"));
+    assert.equal(config.backend.command, path.join(root, windows ? "python-runtime/python.exe" : "bin/openstudio-mcp"));
     assert.deepEqual(config.backend.readRoots, [root]);
     assert.equal(config.backend.environment.GEM_HOME, path.join(root, "gems/ruby/3.2.0"));
     assert.equal(validateConfig(config).bundledRuntime, true);

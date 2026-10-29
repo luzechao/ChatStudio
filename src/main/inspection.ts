@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
-import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
+import { SandboxManager } from "@carderne/sandbox-runtime";
 import type { AppConfig } from "../shared/contracts.js";
 import type { InspectionKind, ModelGeometry, SimulationResults } from "../shared/inspection.js";
 import { parseInspection } from "../shared/inspection.js";
@@ -90,7 +90,7 @@ export async function inspectProject(config: AppConfig, privateRoot: string, kin
   const source = await projectFile(config.workspace, relative, [kind === "model" ? ".osm" : ".sql"]);
   const cli = config.backend.environment.OPENSTUDIO_CLI;
   if (!cli || !path.isAbsolute(cli)) throw new Error("Configure the included native runtime or an absolute OPENSTUDIO_CLI in Settings to use viewers.");
-  const encode = (value: string) => `"${Buffer.from(value).toString("base64")}".unpack1("m0")`;
+  const encode = (value: string) => `"${Buffer.from(process.platform === "win32" ? value.replaceAll("\\", "/") : value).toString("base64")}".unpack1("m0")`;
   const header = `source = ${encode(source)}; root = ${encode(await realpath(config.workspace))}\n`
     + `raise "Viewer file escaped the project." unless File.realpath(source).start_with?(root + File::SEPARATOR)\n`;
   const script = header + "result = nil\n" + (kind === "model" ? modelScript : resultsScript)

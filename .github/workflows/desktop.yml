@@ -23,15 +23,15 @@ jobs:
           - os: macos-15
             platform: mac
             arch: arm64
-            executable: release/mac-arm64/ChatStudio.app/Contents/MacOS/ChatStudio
+            executable: release-native/mac-arm64/ChatStudio.app/Contents/MacOS/ChatStudio
           - os: ubuntu-24.04
             platform: linux
             arch: x64
-            executable: release/linux-unpacked/chatstudio
+            executable: release-native/linux-unpacked/chatstudio
           - os: windows-2022
             platform: win
             arch: x64
-            executable: release/win-unpacked/ChatStudio.exe
+            executable: release-native/win-unpacked/ChatStudio.exe
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -44,13 +44,22 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y bubblewrap socat ripgrep xvfb libfuse2t64
+          sudo sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap socat ripgrep xvfb libfuse2t64 patchelf libgomp1
           # GitHub's disposable runner must permit bubblewrap's user namespace.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Install macOS sandbox dependencies
         if: runner.os == 'macOS'
         run: brew install ripgrep
       - run: npm ci
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Assemble self-contained native runtime
+        run: npm run setup:bundle
+      - name: Provision Windows sandbox on disposable CI runner
+        if: runner.os == 'Windows'
+        run: node --input-type=module -e "import {installWindowsSandbox} from '@carderne/sandbox-runtime'; const r=installWindowsSandbox(); if(r.cancelled || !r.user.provisioned) throw new Error('Windows sandbox provisioning failed')"
       - name: Require tag to match package version
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
@@ -59,6 +68,12 @@ jobs:
         run: node -e "if (process.env.TAG !== 'v' + require('./package.json').version) throw new Error('Tag must match package.json version')"
       - run: npm run typecheck
       - run: npm test
+        env:
+          CHATSTUDIO_SANDBOX_HELPERS: ${{ github.workspace }}/.runtime/bundle/sandbox
+      - name: Verify native Measures and EnergyPlus under confinement
+        run: npm run test:bundle
+        env:
+          CHATSTUDIO_SANDBOX_HELPERS: ${{ github.workspace }}/.runtime/bundle/sandbox
       - run: npm run build
       - name: Verify provider requests on Windows and macOS
         if: runner.os != 'Linux'
@@ -70,8 +85,8 @@ jobs:
         run: xvfb-run -a npm run test:provider
         env:
           DEBUG: pw:browser
-      - name: Build unsigned preview installers
-        run: npx electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+      - name: Build unsigned self-contained installers
+        run: npx electron-builder --config electron-builder.native.yml --${{ matrix.platform }} --${{ matrix.arch }} --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
       - name: Smoke-test packaged app
@@ -79,22 +94,24 @@ jobs:
         run: npm run test:package
         env:
           CHATSTUDIO_EXECUTABLE: ${{ matrix.executable }}
+          CHATSTUDIO_EXPECT_BUNDLE: "1"
       - name: Smoke-test packaged app on Linux
         if: runner.os == 'Linux'
         run: xvfb-run -a npm run test:package
         env:
-          CHATSTUDIO_EXECUTABLE: ${{ matrix.executable }}
+          CHATSTUDIO_EXECUTABLE: release-native/linux-unpacked/chatstudio
+          CHATSTUDIO_EXPECT_BUNDLE: "1"
       - uses: actions/upload-artifact@v4
         with:
           name: ChatStudio-${{ matrix.platform }}-${{ matrix.arch }}
           if-no-files-found: error
           retention-days: 14
           path: |
-            release/*.dmg
-            release/*.zip
-            release/*.exe
-            release/*.AppImage
-            release/*.deb
+            release-native/*.dmg
+            release-native/*.zip
+            release-native/*.exe
+            release-native/*.AppImage
+            release-native/*.deb
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -117,5 +134,5 @@ jobs:
           cd installers
           sha256sum * > SHA256SUMS.txt
           gh release create "$TAG" ./* --verify-tag --draft --prerelease \
-            --title "ChatStudio $TAG — unsigned desktop preview" \
-            --notes "Unsigned preview installers for macOS Apple Silicon, Windows x64, and Linux x64. Native SDK/CLI, Python, EnergyPlus, Ruby gems, and Measure assets are NOT bundled. Configure an external native runtime on macOS/Linux. Windows native modeling remains disabled pending a validated sandbox adapter; AI chat is available. These are not signed/notarized production distributions. See the repository README for setup and limitations."
+            --title "ChatStudio $TAG — self-contained native preview" \
+            --notes "Unsigned self-contained installers for macOS Apple Silicon, Windows x64, and Ubuntu 24.04-compatible Linux x64. OpenStudio SDK/CLI, EnergyPlus, Python, embedded Ruby/gems, Common/ComStock Measures and ripgrep are included; gbXML assets are omitted. Linux also includes Bubblewrap and socat (kernel user namespaces must be enabled). Windows uses pi-sandbox's alpha runtime backend and requires one-time administrator/UAC setup in Settings. These are not signed/notarized production distributions. See README for setup and limitations."

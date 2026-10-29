@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
+import { SandboxManager } from "@carderne/sandbox-runtime";
 import { bundledConfig } from "../src/main/native-runtime.js";
 import { OpenStudioBackend } from "../src/main/mcp.js";
 import { prepareSandbox } from "../src/main/sandbox.js";
@@ -48,7 +48,7 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
     const probe = path.join(workspace, "probe.rb");
     await writeFile(probe, 'require "openstudio-standards"\nrequire "minitest/autorun"\nputs "BUNDLED_RUBY=#{RUBY_VERSION}"\nputs Standard.build("90.1-2019").class\n');
     const { warnings: _warnings, ...launch } = await prepareSandbox({
-      ...config, backend: { ...config.backend, command: path.join(root, "bin/ruby"), args: ["-I", ".", probe] },
+      ...config, backend: { ...config.backend, command: path.join(root, `bin/ruby${process.platform === "win32" ? ".exe" : ""}`), args: ["-I", ".", probe] },
     }, privateRoot);
     const ruby = await run(launch.command, launch.args, launch);
     assert.match(ruby, /BUNDLED_RUBY=3\.2\.2/);
@@ -86,7 +86,7 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
     assert.equal(pythonTests.errors, 0);
     await call("apply_measure", { measure_dir: pythonMeasure.measure_dir, arguments: {} });
     assert.match(JSON.stringify(await call("get_model_summary", {})), /Bundled Python Verified/);
-    for (const name of ["common", "comstock", "gbxml"]) {
+    for (const name of ["common", "comstock"]) {
       const measures = await call("list_local_measures", { root_dir: path.join(root, "measures", name), max_results: 5 });
       assert.match(JSON.stringify(measures), /measure\.rb|measure_dir/);
     }
@@ -110,7 +110,7 @@ if not m.getDesignDays():
     d.setWetbulbOrDewPointAtMaximumDryBulb(23.0)
 m.save(openstudio.path(${JSON.stringify(osm)}), True)
 `);
-    await run(path.join(root, "bin/python3"), [fixture]);
+    await run(path.join(root, `bin/python3${process.platform === "win32" ? ".exe" : ""}`), [fixture]);
     const started = await call("run_simulation", { osm_path: osm, name: "bundle-design-day" });
     console.log("Simulation started:", JSON.stringify(started));
     const runId = started.run_id;

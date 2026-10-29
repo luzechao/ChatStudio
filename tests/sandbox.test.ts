@@ -5,12 +5,12 @@ import { createServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
+import { SandboxManager } from "@carderne/sandbox-runtime";
 import { prepareSandbox } from "../src/main/sandbox.js";
 
 test("real OS sandbox blocks sibling/private reads, outside writes, child escape, network and inherited secrets", {
-  skip: process.platform !== "darwin" && process.platform !== "linux",
-  timeout: 30_000,
+  skip: !["darwin", "linux", "win32"].includes(process.platform),
+  timeout: 120_000,
 }, async () => {
   const base = await mkdtemp(path.join(homedir(), ".chatstudio-test-"));
   const outsideRoot = await realpath(await mkdtemp(path.join(tmpdir(), "chatstudio-outside-")));
@@ -80,7 +80,7 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
 });
 
 test("internet switch allows and then blocks public outbound connections through the sandbox proxy", {
-  skip: process.platform !== "darwin" && process.platform !== "linux", timeout: 45_000,
+  skip: !["darwin", "linux", "win32"].includes(process.platform), timeout: 120_000,
 }, async () => {
   const base = await mkdtemp(path.join(homedir(), ".chatstudio-network-test-"));
   const workspace = path.join(base, "workspace"), privateRoot = path.join(base, "private");

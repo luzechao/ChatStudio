@@ -40,9 +40,9 @@ test("sandbox policy denies network, home reads, private state and writes outsid
   const policy = sandboxPolicy("/project", ["/runtime"], "/private-state");
   assert.deepEqual(policy.network.allowedDomains, []);
   assert.equal(policy.network.strictAllowlist, true);
-  assert.deepEqual(policy.filesystem.allowWrite, [{ path: "/project", literal: true }]);
+  assert.deepEqual(policy.filesystem.allowWrite, ["/project"]);
   assert.deepEqual(policy.filesystem.denyRead, [
-    { path: homedir(), literal: true }, { path: "/private-state", literal: true },
+    homedir(), "/private-state",
   ]);
 });
 

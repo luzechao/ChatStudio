@@ -93,6 +93,8 @@ export interface ChatStudioAPI {
   forgetCredential(scope: CredentialScope): Promise<void>;
   bundledRuntime(workspace: string): Promise<AppConfig | null>;
   chooseWorkspace(): Promise<string | null>;
+  sandboxStatus(): Promise<{ windows: boolean; ready: boolean }>;
+  installSandbox(): Promise<void>;
   openProject(workspace: string): Promise<ProjectState>;
   projectState(): Promise<ProjectState>;
   recentProjects(): Promise<ProjectInfo[]>;
