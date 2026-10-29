@@ -21,7 +21,7 @@ if command == "openstudio-mcp":
         import faulthandler
         import time
         sys.argv.pop()
-        faulthandler.dump_traceback_later(20, repeat=True)
+        faulthandler.dump_traceback_later(60)
         print(f"[ChatStudio] Startup trace enabled at {time.monotonic():.3f}.", file=sys.stderr, flush=True)
         if os.name == "nt":
             import ctypes
