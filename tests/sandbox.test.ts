@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, realpath, stat } from "node:fs/promises";
 import { createServer } from "node:net";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
@@ -13,6 +13,8 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
   timeout: 30_000,
 }, async () => {
   const base = await mkdtemp(path.join(homedir(), ".chatstudio-test-"));
+  const outsideRoot = await realpath(await mkdtemp(path.join(tmpdir(), "chatstudio-outside-")));
+  const outsideFile = path.join(outsideRoot, "escape.txt");
   const workspace = path.join(base, "workspace");
   const privateRoot = path.join(base, "private");
   const secret = path.join(base, "secret.txt");
@@ -26,7 +28,7 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
     const address = server.address();
     assert.ok(address && typeof address === "object");
     const script = path.join(workspace, "probe.mjs");
-    const deniedCodes = process.platform === "linux" ? ["EPERM", "EACCES", "ENOENT"] : ["EPERM", "EACCES"];
+    const deniedCodes = process.platform === "linux" ? ["EPERM", "EACCES", "ENOENT", "EROFS"] : ["EPERM", "EACCES"];
     await writeFile(script, `
       import fs from 'node:fs';
       import net from 'node:net';
@@ -38,7 +40,7 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
       out.workspaceWrite = true;
       out.secretReadDenied = blocked(()=>fs.readFileSync(${JSON.stringify(secret)}));
       out.privateReadDenied = blocked(()=>fs.readFileSync(${JSON.stringify(path.join(privateRoot, "secret.txt"))}));
-      out.outsideWriteDenied = blocked(()=>fs.writeFileSync(${JSON.stringify(path.join(base, "escape.txt"))}, 'no'));
+      out.outsideWriteDenied = blocked(()=>fs.writeFileSync(${JSON.stringify(outsideFile)}, 'no'));
       out.environmentScrubbed = !process.env.CHATSTUDIO_TEST_SECRET;
       const child=spawnSync(process.execPath,['-e',${JSON.stringify(`try {require('fs').readFileSync(${JSON.stringify(secret)});process.exit(1)}catch(e){process.exit(${JSON.stringify(deniedCodes)}.includes(e.code)?0:2)}`)}],{encoding:'utf8'});
       out.childReadDenied = child.status === 0;
@@ -63,6 +65,7 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
       child.on("close", (code) => resolve({ code, stdout, stderr }));
     });
     assert.equal(result.code, 0, result.stderr);
+    await assert.rejects(stat(outsideFile), { code: "ENOENT" });
     assert.deepEqual(JSON.parse(result.stdout), {
       workspaceWrite: true, secretReadDenied: true, privateReadDenied: true,
       outsideWriteDenied: true, environmentScrubbed: true, childReadDenied: true, networkDenied: true,
@@ -72,6 +75,7 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
     server.close();
     await SandboxManager.reset();
     await rm(base, { recursive: true, force: true });
+    await rm(outsideRoot, { recursive: true, force: true });
   }
 });
 
