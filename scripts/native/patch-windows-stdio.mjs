@@ -52,7 +52,7 @@ export async function patchWindowsEventLoop(stdlib) {
 
 export async function patchWindowsMeasureSyntax(sitePackages) {
   const file = path.join(sitePackages, "mcp_server/skills/measure_authoring/operations.py");
-  let source = await readFile(file, "utf8");
+  let source = (await readFile(file, "utf8")).replaceAll("\r\n", "\n");
   const replacements = [
     ["import subprocess\n", "import subprocess\nimport os\nimport sys\n"],
     ['["ruby", "-c", str(script_path)],',
@@ -65,7 +65,7 @@ export async function patchWindowsMeasureSyntax(sitePackages) {
   for (const [before, after] of replacements) {
     if (source.includes(after)) continue;
     const expected = before.startsWith("capture_output") ? 2 : 1;
-    if (source.split(before).length !== expected + 1) throw new Error("Unexpected pinned MCP Measure syntax source");
+    if (source.split(before).length !== expected + 1) throw new Error(`Unexpected pinned MCP Measure syntax source: ${before}`);
     source = source.replaceAll(before, after);
   }
   await writeFile(file, source);

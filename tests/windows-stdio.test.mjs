@@ -19,7 +19,7 @@ proc = subprocess.run(
     ["python3", "-c", f"compile({code!r}, {str(script_path)!r}, 'exec')"],
     capture_output=True, text=True, timeout=10, check=False,
 )
-`);
+`.replaceAll("\n", "\r\n"));
     await patchWindowsMeasureSyntax(directory);
     const patched = await readFile(file, "utf8");
     assert.match(patched, /os\.environ\["OPENSTUDIO_CLI"\]/);
@@ -28,6 +28,9 @@ proc = subprocess.run(
     assert.equal(patched.split("stdin=subprocess.DEVNULL").length, 3);
     assert.equal(patched.split("timeout=10").length, 3);
     assert.doesNotMatch(patched, /\["ruby"|\["python3"/);
+    await patchWindowsMeasureSyntax(directory);
+    assert.equal(await readFile(file, "utf8"), patched);
+    await writeFile(file, patched.replaceAll("\n", "\r\n"));
     await patchWindowsMeasureSyntax(directory);
     assert.equal(await readFile(file, "utf8"), patched);
     await writeFile(file, "unexpected");
