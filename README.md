@@ -311,6 +311,8 @@ Keys are separated by provider. Custom OpenAI-compatible keys are additionally
 separated by normalized API base URL, not model, so switching company endpoints
 cannot reuse another endpoint's saved key. Selecting that provider/endpoint
 restores its key automatically; changing the endpoint clears the current key.
+Key input and saving remain disabled during startup until saved configuration
+and credential loading finish, so a key cannot bind to a temporary default provider.
 When editing a remembered key, use **Update saved key**, **Open chat**, or
 **Connect local engine** to save the replacement.
 

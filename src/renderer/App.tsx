@@ -18,7 +18,7 @@ export function App() {
   const [apiKey, setApiKey] = useState("");
   const [rememberKey, setRememberKey] = useState(false);
   const [encryptionAvailable, setEncryptionAvailable] = useState(false);
-  const [credentialBusy, setCredentialBusy] = useState(true);
+  const [credentialLoading, setCredentialBusy] = useState(true);
   const [keyChanged, setKeyChanged] = useState(false);
   const [baseUrl, setBaseUrl] = useState("");
   const [customModel, setCustomModel] = useState("");
@@ -29,6 +29,7 @@ export function App() {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "model" | "results">("chat");
   const [projectBusy, setProjectBusy] = useState(true);
+  const credentialBusy = credentialLoading || projectBusy;
   const [viewerBusy, setViewerBusy] = useState(false);
   const [networkBusy, setNetworkBusy] = useState(false);
   const [sandboxSetup, setSandboxSetup] = useState(false);

@@ -71,6 +71,7 @@ test("Electron secure key storage is opt-in, encrypted on disk, restored and for
     electron = await launch();
     page = await electron.firstWindow();
     await page.getByText("API key saved with OS encryption for this provider/endpoint.", { exact: false }).waitFor();
+    assert.equal(await page.getByLabel("Provider", { exact: true }).inputValue(), scope.provider);
     assert.equal(await page.getByLabel("API key", { exact: true }).inputValue(), `${key}-updated`);
     assert.equal(await page.getByLabel("Remember API key on this device", { exact: true }).isChecked(), true);
     await page.getByLabel("Remember API key on this device", { exact: true }).click();
@@ -81,6 +82,7 @@ test("Electron secure key storage is opt-in, encrypted on disk, restored and for
     electron = await launch();
     page = await electron.firstWindow();
     await page.getByText("Optional: save with OS encryption.", { exact: false }).waitFor();
+    assert.equal(await page.getByLabel("Provider", { exact: true }).inputValue(), scope.provider);
     assert.equal(await page.getByLabel("API key", { exact: true }).inputValue(), "");
     await page.getByLabel("API key", { exact: true }).fill(key);
     await page.getByLabel("Remember API key on this device", { exact: true }).click();
