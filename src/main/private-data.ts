@@ -19,7 +19,8 @@ foreach ($item in $items) {
   foreach ($sid in $trusted) {
     $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid, [Security.AccessControl.FileSystemRights]::FullControl, $inherit, [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
   }
-  Set-Acl -LiteralPath $item.FullName -AclObject $acl
+  if ($item.PSIsContainer) { [IO.Directory]::SetAccessControl($item.FullName, $acl) }
+  else { [IO.File]::SetAccessControl($item.FullName, $acl) }
 }`;
   await promisify(execFile)(path.join(process.env.SystemRoot || "C:\\Windows", "System32/WindowsPowerShell/v1.0/powershell.exe"),
     ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")],

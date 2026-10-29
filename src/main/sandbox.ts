@@ -27,6 +27,9 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
     const relative = path.relative(parent, child);
     return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
   };
+  if (contains(privatePath, homedir()) || privatePath === path.parse(privatePath).root) {
+    throw new Error("ChatStudio private data must use a dedicated directory, not home or a filesystem root.");
+  }
   if (workspace === homedir() || workspace === path.parse(workspace).root || contains(workspace, privatePath)
     || contains(privatePath, workspace)) throw new Error("Workspace must be separate from ChatStudio's private data.");
   const command = await realpath(config.backend.command);

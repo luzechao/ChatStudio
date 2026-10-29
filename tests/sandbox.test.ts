@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, mkdir, writeFile, rm, realpath, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm, realpath, stat } from "node:fs/promises";
 import { createServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { SandboxManager } from "@carderne/sandbox-runtime";
 import { prepareSandbox } from "../src/main/sandbox.js";
+
+test("private data protection refuses home directories and filesystem roots before changing permissions", async () => {
+  const workspace = await mkdtemp(path.join(tmpdir(), "chatstudio-private-path-"));
+  try {
+    for (const privateRoot of [homedir(), path.dirname(homedir()), path.parse(workspace).root]) {
+      await assert.rejects(prepareSandbox({
+        workspace, backend: { command: process.execPath, args: [], readRoots: [], environment: {} },
+      }, privateRoot), /private data must use a dedicated directory/);
+    }
+  } finally { await rm(workspace, { recursive: true, force: true }); }
+});
 
 test("real OS sandbox blocks sibling/private reads, outside writes, child escape, network and inherited secrets", {
   skip: !["darwin", "linux", "win32"].includes(process.platform),
@@ -42,7 +53,7 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
       out.privateReadDenied = blocked(()=>fs.readFileSync(${JSON.stringify(path.join(privateRoot, "secret.txt"))}));
       out.newPrivateReadDenied = blocked(()=>fs.readFileSync(${JSON.stringify(path.join(privateRoot, "new-secret.txt"))}));
       out.newNestedPrivateReadDenied = blocked(()=>fs.readFileSync(${JSON.stringify(path.join(privateRoot, "new-directory", "secret.txt"))}));
-      out.privateWriteDenied = blocked(()=>fs.writeFileSync(${JSON.stringify(path.join(privateRoot, "secret.txt"))}, 'no'));
+      blocked(()=>fs.writeFileSync(${JSON.stringify(path.join(privateRoot, "secret.txt"))}, 'no'));
       out.outsideWriteDenied = blocked(()=>fs.writeFileSync(${JSON.stringify(outsideFile)}, 'no'));
       out.environmentScrubbed = !process.env.CHATSTUDIO_TEST_SECRET;
       const child=spawnSync(process.execPath,['-e',${JSON.stringify(`try {require('fs').readFileSync(${JSON.stringify(secret)});process.exit(1)}catch(e){process.exit(${JSON.stringify(deniedCodes)}.includes(e.code)?0:2)}`)}],{encoding:'utf8'});
@@ -71,10 +82,12 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
       child.on("close", (code) => resolve({ code, stdout, stderr }));
     });
     assert.equal(result.code, 0, result.stderr);
+    // Linux may permit writes into its empty private-path mask, never the host data.
+    assert.equal(await readFile(path.join(privateRoot, "secret.txt"), "utf8"), "synthetic-agent-data");
     await assert.rejects(stat(outsideFile), { code: "ENOENT" });
     assert.deepEqual(JSON.parse(result.stdout), {
       workspaceWrite: true, secretReadDenied: true, privateReadDenied: true, newPrivateReadDenied: true,
-      newNestedPrivateReadDenied: true, privateWriteDenied: true,
+      newNestedPrivateReadDenied: true,
       outsideWriteDenied: true, environmentScrubbed: true, childReadDenied: true, networkDenied: true,
     });
   } finally {
