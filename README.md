@@ -221,12 +221,29 @@ plots, model editing and live result overlays are not part of this first version
 ### Session tool permissions
 
 The **Internet access** switch in Settings controls outbound internet access
-for the local modeling backend. It is off by default and saved across restarts.
+for the local modeling backend and Pi's `web_search` tool. It is off by default and saved across restarts.
 Changing it disconnects the engine and clears session tool permissions; reconnect
 to apply the saved policy. Enabled tools may download resources or transmit
 project data, subject to normal tool approval. Filesystem protections remain
 unchanged. AI-provider requests are separate and are not disabled by this switch.
 Native model/results viewers remain offline regardless of the switch.
+
+With the switch on, ask chat to search the web. `web_search` uses Exa's public
+MCP search endpoint (the same no-key search service supported by pi-web-access);
+no additional API key is needed. This is a narrow built-in integration, not the
+full pi-web-access extension: browser automation, repository cloning, video,
+arbitrary URL fetching, and extension/config discovery remain disabled.
+Search works without connecting the modeling backend. Each search requires normal
+tool approval unless granted session permission. The approval shows the query,
+result count, and provider. Only these search parameters are sent to Exa, not
+your AI-provider key or automatic project attachments. Do not put sensitive data
+in queries. Results contain untrusted snippets and source URLs for citation;
+they are not instructions. Searches time out after 30 seconds, are bounded to
+five results and 16,000 result characters, and Stop cancels in-flight requests.
+Exa's free service may rate-limit or be unavailable; failures are reported, not
+replaced with fabricated results. Turning the switch off removes the web tool
+and clears permissions/context before the next response. Provider chat remains
+available.
 
 **Allow this tool for this session** approves the current call and future calls
 to that exact tool with any arguments. Other tools still prompt. Active grants
@@ -334,7 +351,7 @@ OS-sandboxed native MCP process and its descendants
 ```
 
 Pi's built-in shell/file tools, arbitrary extensions, project instructions, and
-automatic skill-file execution are disabled. The two exposed agent tools search
+automatic skill-file execution are disabled. The two always-exposed agent tools search
 the backend catalog and invoke approved MCP tools. MCP skill documents are treated
 as untrusted workflow guidance, not executable Pi extensions.
 

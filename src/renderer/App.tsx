@@ -303,10 +303,12 @@ export function App() {
         <h2>Internet access</h2>
         <label className="remember-key"><input type="checkbox" role="switch" aria-label="Internet access"
           checked={config.internetAccess === true} disabled={busy || connecting || projectBusy || viewerBusy || networkBusy}
-          onChange={(e) => void run(() => changeInternetAccess(e.target.checked))} />Allow local modeling tools to access the internet</label>
-        <small>Off by default. Turning this on lets approved modeling tools download resources or send project data to internet services.
+          onChange={(e) => void run(() => changeInternetAccess(e.target.checked))} />Allow web search and modeling internet access</label>
+        <small>Off by default. Enables approval-gated Exa web search (no extra API key) and lets approved modeling tools download resources or send project data to internet services.
+          Search queries are sent to Exa; do not include private data.
           AI-provider connections are separate and remain available. File protections stay active.
-          Changing this disconnects the local engine and clears tool permissions; reconnect to apply it. Viewers remain offline.</small>
+          Changing this resets the AI context, disconnects the local engine and clears tool permissions.
+          Web search applies immediately; reconnect for modeling tools. Viewers remain offline.</small>
         <h2>AI provider</h2>
         <div className="row">
           <label>Provider<select aria-label="Provider" value={provider} disabled={busy || credentialBusy || messages.length > 0} onChange={(e) => { setProvider(e.target.value); setApiKey(""); }}>

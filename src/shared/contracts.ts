@@ -67,7 +67,7 @@ export type HostRequest =
   | { type: "project"; id: string; workspace: string }
   | { type: "connect"; id: string; config: AppConfig }
   | { type: "disconnect"; id: string }
-  | { type: "prompt"; id: string; provider: string; model: string; apiKey: string; text: string; baseUrl?: string }
+  | { type: "prompt"; id: string; provider: string; model: string; apiKey: string; text: string; baseUrl?: string; internetAccess: boolean }
   | { type: "reset"; id: string }
   | { type: "abort"; id: string }
   | { type: "revoke"; id: string; name: string }

@@ -215,7 +215,17 @@ const channels: Record<string, (...args: unknown[]) => unknown> = {
       return await handle.readFile("utf8");
     } finally { await handle.close(); }
   },
-  "config:save": async (config) => writeFile(configPath, JSON.stringify(validateConfig(config), null, 2), { mode: 0o600 }),
+  "config:save": async (config) => {
+    const validated = validateConfig(config);
+    if ((validated.internetAccess === true) !== ((await loadConfig()).internetAccess === true)) {
+      if (promptRunning || projectChanging || viewerRunning) throw new Error("Wait for the current operation before changing Internet access.");
+      projectChanging = true;
+      try {
+        if (host) await rpc({ type: "disconnect", id: randomUUID() });
+        await writeFile(configPath, JSON.stringify(validated, null, 2), { mode: 0o600 });
+      } finally { projectChanging = false; }
+    } else await writeFile(configPath, JSON.stringify(validated, null, 2), { mode: 0o600 });
+  },
   "runtime:bundled": async (workspace) => {
     if (!hasBundle) return null;
     if (typeof workspace !== "string") throw new Error("Invalid project folder.");
@@ -289,7 +299,8 @@ const channels: Record<string, (...args: unknown[]) => unknown> = {
       await projects.append({ role: "user", text: redact(input.text) });
       userSaved = true;
       await rpc({ type: "prompt", id: randomUUID(), provider: input.provider, model: endpoint?.model ?? input.model,
-        apiKey: input.apiKey, text: input.text, ...(endpoint ? { baseUrl: endpoint.baseUrl } : {}) });
+        apiKey: input.apiKey, text: input.text, internetAccess: (await loadConfig()).internetAccess === true,
+        ...(endpoint ? { baseUrl: endpoint.baseUrl } : {}) });
     } catch (error) {
       capturedError = redact(error instanceof Error ? error.message : String(error));
       throw new Error(capturedError);

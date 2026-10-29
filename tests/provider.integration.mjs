@@ -48,6 +48,15 @@ test("Electron agent streams from a local OpenAI-compatible host and reports pro
       id: "chatcmpl-local", object: "chat.completion.chunk", created: 1, model: "diagnostic",
       choices: [{ index: 0, delta, finish_reason }],
     })}\n\n`;
+    if (mode.startsWith("web-") && requests.at(-1).body.messages.at(-1).role !== "tool") {
+      const query = mode === "web-secret" ? "synthetic-local-key" : "OpenStudio documentation";
+      res.write(chunk({ role: "assistant", tool_calls: [{
+        index: 0, id: "search-1", type: "function",
+        function: { name: "web_search", arguments: JSON.stringify({ query, numResults: 2 }) },
+      }] }));
+      res.end(`${chunk({}, "tool_calls")}data: [DONE]\n\n`);
+      return;
+    }
     const text = mode === "markdown" ? markdownReply : mode === "hold" ? "Partial response. synthetic-local-key" : "Hello from the local host.";
     const split = mode === "markdown" ? text.indexOf("```python") + 5 : 11;
     res.write(chunk({ role: "assistant", content: text.slice(0, split) }));
@@ -244,6 +253,41 @@ test("Electron agent streams from a local OpenAI-compatible host and reports pro
     assert.equal(history.conversations.length, 3);
     assert.match(history.conversations[0].messages[1].text, /Request error:.*401.*Invalid diagnostic key/s);
     assert.ok(!JSON.stringify(history).includes("synthetic-local-key"));
+    mode = "success";
+    for (const enabled of [true, false]) {
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page.getByRole("switch", { name: "Internet access", exact: true }).click();
+      await page.waitForFunction((enabled) =>
+        document.querySelector('[aria-label="Internet access"]').checked === enabled, enabled);
+      await page.getByRole("button", { name: "Open chat", exact: true }).click();
+      await page.getByRole("textbox", { name: "Message", exact: true }).fill("Check internet tool availability.");
+      await page.getByRole("button", { name: "Send", exact: true }).click();
+      await page.getByRole("button", { name: "Send", exact: true }).waitFor();
+      assert.equal(requests.at(-1).body.tools.some((tool) => tool.function.name === "web_search"), enabled);
+      assert.equal(JSON.parse(await readFile(savedPath, "utf8")).internetAccess, enabled);
+    }
+    for (const webMode of ["allow", "deny", "secret"]) {
+      mode = `web-${webMode}`;
+      const result = await electron.evaluate(async ({ utilityProcess }, input) => {
+        const child = utilityProcess.fork(input.entry,
+          [input.baseUrl, input.privateRoot, "chatstudio-custom", input.webMode], { stdio: "pipe" });
+        return new Promise((resolve, reject) => {
+          const timer = setTimeout(() => { child.kill(); reject(new Error("Web-search agent test timed out.")); }, 20_000);
+          child.on("message", (data) => { clearTimeout(timer); child.kill(); resolve(data); });
+          child.on("exit", (code) => { clearTimeout(timer); reject(new Error(`Web-search agent exited (${code}).`)); });
+        });
+      }, { entry: path.join(root, "tests/provider-host.mjs"), baseUrl, privateRoot: userData, webMode });
+      assert.equal(result.failure, undefined);
+      assert.deepEqual(result.credentials, []);
+      assert.equal(result.webRequests.length, webMode === "allow" ? 1 : 0);
+      assert.ok(!JSON.stringify(result.webRequests).includes("synthetic-local-key"));
+      assert.ok(result.events.some((event) => event.type === "tool" && event.name === "web_search"
+        && event.phase === "end" && event.error === (webMode !== "allow")));
+      const toolReply = requests.at(-1).body.messages.find((message) => message.role === "tool");
+      assert.ok(toolReply);
+      assert.match(JSON.stringify(toolReply), webMode === "allow" ? /https:\/\/openstudio.net/
+        : webMode === "deny" ? /not approved/ : /credentials/);
+    }
   } finally {
     releaseResponse?.();
     await electron?.close();

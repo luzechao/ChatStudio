@@ -37,6 +37,7 @@ port.on("message", async ({ data }: { data: HostRequest }) => {
         connecting = true;
         try {
           await agent.reset();
+          await agent.setInternetAccess(data.config.internetAccess === true);
           await backend.connect(data.config, privateRoot);
           workspace = data.config.workspace;
         } finally { connecting = false; }
@@ -46,6 +47,7 @@ port.on("message", async ({ data }: { data: HostRequest }) => {
         await agent.reset(); await backend.disconnect(); break;
       case "prompt":
         if (connecting) throw new Error("Backend startup is in progress.");
+        await agent.setInternetAccess(data.internetAccess === true);
         await agent.prompt(data.provider, data.model, data.apiKey, data.text, data.baseUrl); break;
       case "abort": await agent.abort(); break;
       case "reset": await agent.reset(); break;
