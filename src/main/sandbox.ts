@@ -71,8 +71,8 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
   const cli = config.backend.environment.OPENSTUDIO_CLI;
   if (cli && !path.isAbsolute(cli)) throw new Error("OPENSTUDIO_CLI must be an absolute executable path.");
   const env: Record<string, string> = {
-    PATH: [path.dirname(command), ...(cli ? [path.dirname(cli)] : []),
-      ...(config.bundledRuntime && cli ? [path.resolve(path.dirname(cli), "../../bin")] : []),
+    PATH: [...(config.bundledRuntime && cli ? [path.resolve(path.dirname(cli), "../../bin")] : []),
+      path.dirname(command), ...(cli ? [path.dirname(cli)] : []),
       ...(process.platform === "win32" ? [path.join(process.env.SystemRoot || "C:\\Windows", "System32"),
         path.join(process.env.SystemRoot || "C:\\Windows", "System32/WindowsPowerShell/v1.0")] : ["/usr/bin", "/bin", "/usr/sbin", "/sbin"])].join(path.delimiter),
     LANG: "en_US.UTF-8",

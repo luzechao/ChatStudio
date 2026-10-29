@@ -101,6 +101,8 @@ localhost socket-pair fallback. This does not grant localhost or Internet access
 Socket-only console-signal wakeup descriptors are not installed for these
 headless named-pipe loops; MCP cancellation, pipe EOF, script timeouts and
 Windows job termination remain in effect.
+Windows interpreter wrappers invoke bundled Ruby/Python directly, and bundled
+command paths take precedence over other executables.
 Linux
 builds need Bubblewrap, socat, patchelf and enabled Ubuntu deb-src repositories;
 CI bundles their required files and source rather than requiring users to install

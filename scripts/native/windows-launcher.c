@@ -36,12 +36,22 @@ int wmain(int argc, wchar_t **argv) {
     base = wcsrchr(root, L'\\');
     if (!base) return 1;
     *base = 0;
-    swprintf_s(python, 32768, L"%ls\\python-runtime\\python.exe", root);
-    swprintf_s(script, 32768, L"%ls\\launch.py", root);
+    int ruby = wcscmp(name, L"ruby") == 0;
+    int direct_python = wcscmp(name, L"python3") == 0;
+    if (ruby) {
+        swprintf_s(python, 32768, L"%ls\\openstudio\\bin\\openstudio.exe", root);
+        swprintf_s(script, 32768, L"%ls\\ruby-driver.rb", root);
+    } else {
+        swprintf_s(python, 32768, L"%ls\\python-runtime\\python.exe", root);
+        swprintf_s(script, 32768, L"%ls\\launch.py", root);
+    }
+    int prefix = ruby || direct_python ? 2 : 4;
+    int count = prefix + argc - 1;
+    const wchar_t *prefix_args[] = { python, ruby ? script : L"-I", script, name };
     wchar_t **args = calloc((size_t)argc + 5, sizeof(wchar_t *));
     if (!args) return 1;
-    for (int i = 0; i < argc + 3; i++) {
-        const wchar_t *value = i == 0 ? python : i == 1 ? L"-I" : i == 2 ? script : i == 3 ? name : argv[i - 3];
+    for (int i = 0; i < count; i++) {
+        const wchar_t *value = i < prefix ? prefix_args[i] : argv[i - prefix + 1];
         args[i] = quote_argument(value);
         if (!args[i]) {
             for (int j = 0; j < i; j++) free(args[j]);
@@ -50,7 +60,7 @@ int wmain(int argc, wchar_t **argv) {
         }
     }
     intptr_t status = _wspawnv(_P_WAIT, python, (const wchar_t *const *)args);
-    for (int i = 0; i < argc + 3; i++) free(args[i]);
+    for (int i = 0; i < count; i++) free(args[i]);
     free(args);
     if (status == -1) { _wperror(L"ChatStudio bundled launcher"); return 1; }
     return (int)status;

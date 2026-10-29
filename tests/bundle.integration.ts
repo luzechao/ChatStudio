@@ -91,6 +91,22 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
       ? { ...config, backend: { ...config.backend, args: [...config.backend.args, "--chatstudio-startup-trace"] } } : config, privateRoot);
     assert.equal(backend.tools.length, 207);
     const call = async (name: string, args: Record<string, unknown>) => payload(await backend.call(name, args));
+    if (process.platform === "win32") {
+      const syntax = await call("run_sandboxed_script", { language: "Python", code: [
+        "import pathlib, shutil, subprocess, time",
+        'ruby = shutil.which("ruby")',
+        'print("RUBY_EXECUTABLE=" + str(ruby), flush=True)',
+        `assert pathlib.Path(ruby).resolve() == pathlib.Path(${JSON.stringify(path.join(root, "bin/ruby.exe"))}).resolve()`,
+        'source = pathlib.Path("tmp/syntax-probe.rb")',
+        'for text, valid in [("puts 1", True), ("def (", False)]:',
+        '    source.write_text(text)',
+        '    start = time.monotonic()',
+        '    result = subprocess.run([ruby, "-c", str(source)], capture_output=True, text=True, timeout=10)',
+        '    print(f"RUBY_SYNTAX valid={valid} exit={result.returncode} seconds={time.monotonic()-start:.3f} {result.stdout} {result.stderr}", flush=True)',
+        '    assert (result.returncode == 0) == valid',
+      ].join("\n") });
+      console.log("Windows Ruby syntax checks:", syntax.stdout);
+    }
     const pythonScript = await call("run_sandboxed_script", { language: "Python",
       code: 'import openstudio\nfrom pathlib import Path\nPath("inputs/python-script.txt").write_text("Python sandbox verified")\nprint(openstudio.openStudioVersion())' });
     assert.match(String(pythonScript.stdout), /3\.11\.0/);
