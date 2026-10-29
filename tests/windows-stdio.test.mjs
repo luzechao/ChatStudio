@@ -3,6 +3,28 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { patchWindowsEventLoop } from "../scripts/native/patch-windows-stdio.mjs";
+
+test("Windows event-loop patch uses named pipes and checks pinned CPython source", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "chatstudio-event-loop-"));
+  const file = path.join(directory, "asyncio/proactor_events.py");
+  try {
+    await mkdir(path.dirname(file));
+    await writeFile(file, `        self._ssock, self._csock = socket.socketpair()
+        self._ssock.setblocking(False)
+        self._csock.setblocking(False)`);
+    await patchWindowsEventLoop(directory);
+    const patched = await readFile(file, "utf8");
+    assert.match(patched, /from chatstudio_windows_self_pipe import pipe_pair/);
+    assert.doesNotMatch(patched, /socket\.socketpair/);
+    await patchWindowsEventLoop(directory);
+    assert.equal(await readFile(file, "utf8"), patched);
+    await writeFile(file, "unexpected");
+    await assert.rejects(patchWindowsEventLoop(directory), /Unexpected pinned CPython proactor source/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("Windows stdin patch preserves control framing and forwards only Exec input", async () => {
   const { patchWindowsStdio } = await import("../scripts/native/patch-windows-stdio.mjs");

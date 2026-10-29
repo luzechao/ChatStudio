@@ -4,7 +4,7 @@ import { cp, mkdir, readFile, readdir, realpath, writeFile, chmod, rm } from "no
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { patchWindowsStdio } from "./native/patch-windows-stdio.mjs";
+import { patchWindowsEventLoop, patchWindowsStdio } from "./native/patch-windows-stdio.mjs";
 
 const platform = `${process.platform}-${process.arch}`;
 const platforms = {
@@ -116,6 +116,11 @@ archives.push(await archive(`openstudio-3.11.0-${platform}.tar.gz`,
 archives.push(await archive(`python-3.13.18-${platform}.tar.gz`,
   `https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.13.18%2B20261026-${target.python}-install_only_stripped.tar.gz`,
   target.pythonHash, path.join(bundle, "python-runtime")));
+if (windows) {
+  const stdlib = path.join(bundle, "python-runtime/Lib");
+  await cp(path.join(scriptDir, "windows-self-pipe.py"), path.join(stdlib, "chatstudio_windows_self_pipe.py"));
+  await patchWindowsEventLoop(stdlib);
+}
 await rm(path.join(bundle, "openstudio/Radiance"), { recursive: true, force: true });
 
 const mcpRevision = "e0a47a9c50aa6c52f77ba63540118bb816d12726";
@@ -229,7 +234,7 @@ for (const directory of ["openstudio", "python-runtime", "measures", "gems"]) aw
 await writeFile(path.join(bundle, "manifest.json"), JSON.stringify({
   schema: 1, platform: process.platform, arch: process.arch, openstudio: "3.11.0", energyplus: "25.2.0",
   python: "3.13.18", ruby: "3.2.2", mcpRevision, archives, measures,
-  ...(windows ? { sandboxRevision, sandboxStdinPatch: 1 } : {}),
+  ...(windows ? { sandboxRevision, sandboxStdinPatch: 1, pythonNamedPipeWakeupPatch: 1 } : {}),
 }, null, 2));
 await writeFile(path.join(bundle, "licenses/README.txt"),
   "Third-party components retain their upstream licenses. OpenStudio(R), EnergyPlus, Python, Ruby/gems and Python packages retain license files in their respective directories. ComStock/Common and ripgrep notices are in this directory. gbXML assets are not distributed. Linux socat is GPL-2.0-or-later; corresponding source is available from Ubuntu's source archive (apt source socat). Bubblewrap source is available from Ubuntu's source archive (apt source bubblewrap).\n");

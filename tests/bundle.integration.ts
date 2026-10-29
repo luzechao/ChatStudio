@@ -71,7 +71,7 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
 
     if (process.platform === "win32") {
       const pythonProbe = path.join(workspace, "stdio-probe.py");
-      await writeFile(pythonProbe, 'import sys\nprint("PYTHON_STDIO=" + sys.stdin.readline().strip(), flush=True)\nprint("REMAINING_STDIN=" + str(len(sys.stdin.read())), flush=True)\nprint(repr(sys.argv[1:]), flush=True)\n');
+      await writeFile(pythonProbe, 'import asyncio, sys\nasync def wakeup():\n    return await asyncio.to_thread(lambda: "verified")\nprint("ASYNCIO_WAKEUP=" + asyncio.run(wakeup()), flush=True)\nprint("PYTHON_STDIO=" + sys.stdin.readline().strip(), flush=True)\nprint("REMAINING_STDIN=" + str(len(sys.stdin.read())), flush=True)\nprint(repr(sys.argv[1:]), flush=True)\n');
       const { warnings: _pythonWarnings, ...pythonLaunch } = await prepareSandbox({
         ...config, backend: { ...config.backend,
           command: path.join(root, "bin/python3.exe"),
@@ -80,6 +80,7 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
       const python = await run(pythonLaunch.command, pythonLaunch.args, { ...pythonLaunch, input: "roundtrip\n",
         replyAfterOutput: { marker: "PYTHON_STDIO=roundtrip", input: `${"x".repeat(20000)}\n` } });
       assert.match(python, /PYTHON_STDIO=roundtrip/);
+      assert.match(python, /ASYNCIO_WAKEUP=verified/);
       assert.match(python, /REMAINING_STDIN=20001/);
       assert.ok(python.includes(`['literal "quoted" value', '', 'trailing\\\\']`), python);
       console.log("Windows sandbox Python stdin/stdout roundtrip passed.");

@@ -27,3 +27,17 @@ export async function patchWindowsStdio(directory) {
         drop(stdin.broker);
     }`);
 }
+
+export async function patchWindowsEventLoop(stdlib) {
+  const file = path.join(stdlib, "asyncio/proactor_events.py");
+  const source = await readFile(file, "utf8");
+  const before = `        self._ssock, self._csock = socket.socketpair()
+        self._ssock.setblocking(False)
+        self._csock.setblocking(False)`;
+  const after = `        # ChatStudio: internal wakeups must not require TCP loopback access.
+        from chatstudio_windows_self_pipe import pipe_pair
+        self._ssock, self._csock = pipe_pair()`;
+  if (source.includes(after)) return;
+  if (source.split(before).length !== 2) throw new Error("Unexpected pinned CPython proactor source");
+  await writeFile(file, source.replace(before, after));
+}

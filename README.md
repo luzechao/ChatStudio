@@ -95,7 +95,10 @@ frame, which prevents MCP communication. Assembly replaces its vendored
 `node_modules` binary so provisioning, development tests, and packaged execution
 all use the same helper. The patch and upstream license are included in the
 bundle; the isolated account, restricted token, job, ACL and WFP policy remain
-unchanged. Linux
+unchanged. Bundled Windows CPython also uses named pipes instead of TCP sockets
+for asyncio's internal wakeups: offline WFP policy blocks the standard library's
+localhost socket-pair fallback. This does not grant localhost or Internet access.
+Linux
 builds need Bubblewrap, socat, patchelf and enabled Ubuntu deb-src repositories;
 CI bundles their required files and source rather than requiring users to install
 these tools. Standard OS libraries and kernel features remain prerequisites.
