@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { _electron } from "playwright";
 
-test("packaged desktop loads its isolated renderer and agent catalog without development files", { timeout: 60_000 }, async () => {
+test("packaged desktop loads its isolated renderer and agent catalog without development files", { timeout: 90_000 }, async () => {
   const executablePath = process.env.CHATSTUDIO_EXECUTABLE;
   assert.ok(executablePath, "Set CHATSTUDIO_EXECUTABLE to the packaged executable.");
   const userData = await mkdtemp(path.join(tmpdir(), "chatstudio-package-"));
@@ -41,6 +41,9 @@ test("packaged desktop loads its isolated renderer and agent catalog without dev
       await page.getByRole("button", { name: "Configure external runtime", exact: true }).waitFor();
       assert.equal(await page.getByLabel("MCP executable (absolute path)", { exact: true }).isDisabled(), true);
       await page.getByRole("button", { name: "Connect local engine", exact: true }).click();
+      await page.waitForFunction(() => document.body.textContent.includes("207 native tools discovered")
+        || document.querySelector('[role="alert"]'), undefined, { timeout: 60_000 });
+      assert.deepEqual(await page.getByRole("alert").allTextContents(), [], "Packaged native connection failed");
       await page.getByText("207 native tools discovered").waitFor();
       await page.evaluate(() => window.chatstudio.disconnect());
     } else assert.equal(config.backend.command, "");
