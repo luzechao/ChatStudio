@@ -86,8 +86,7 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
       await SandboxManager.reset();
     }
 
-    await backend.connect(process.platform === "win32"
-      ? { ...config, backend: { ...config.backend, args: [...config.backend.args, "--chatstudio-startup-trace"] } } : config, privateRoot);
+    await backend.connect(config, privateRoot);
     assert.equal(backend.tools.length, 207);
     const call = async (name: string, args: Record<string, unknown>) => {
       console.log(`Calling ${name}${typeof args.language === "string" ? ` (${args.language})` : ""}`);

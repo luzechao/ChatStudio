@@ -113,12 +113,6 @@ passing through host user-profile paths or credentials. Windows profile,
 home-drive and application-data variables point to project-owned directories;
 this includes `PROGRAMDATA`/`ALLUSERSPROFILE` for RubyGems' system-configuration
 lookup, without granting access to the machine's real shared configuration.
-Ruby Measure XML updates on Windows use OpenStudio 3.11's supported `classic
-measure -u` command because the new C++ MeasureManager crashes while initializing
-Ruby in this environment. This still loads the Measure and regenerates its
-metadata; Python Measures, workflow execution and EnergyPlus use the current CLI.
-The classic command is deprecated upstream, so this compatibility patch is tied
-to the pinned SDK version.
 Isolated Windows Python launchers explicitly enable UTF-8 (`-I -X utf8`):
 `-I` ignores `PYTHONUTF8`, and the CLI's Unicode output otherwise breaks
 subprocess text decoding under a legacy Windows code page.

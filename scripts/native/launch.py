@@ -17,23 +17,6 @@ def execute(executable, arguments):
 if command == "openstudio-mcp":
     sys.argv[0] = "openstudio-mcp"
     import runpy
-    if sys.argv[1:] == ["--chatstudio-startup-trace"]:
-        import faulthandler
-        import time
-        sys.argv.pop()
-        faulthandler.dump_traceback_later(60)
-        print(f"[ChatStudio] Startup trace enabled at {time.monotonic():.3f}.", file=sys.stderr, flush=True)
-        if os.name == "nt":
-            import ctypes
-            def trace_child(event, arguments):
-                if event == "subprocess.Popen":
-                    executable, argv, cwd, environment = arguments
-                    buffer = ctypes.create_unicode_buffer(32768)
-                    ctypes.windll.kernel32.GetEnvironmentVariableW("PATH", buffer, len(buffer))
-                    print(f"[ChatStudio] Child executable={executable!r}, argv={str(argv)[:400]!r}, cwd={cwd!r}, "
-                          f"python_PATH={os.environ.get('PATH')!r}, native_PATH={buffer.value!r}, explicit_env={environment is not None}.",
-                          file=sys.stderr, flush=True)
-            sys.addaudithook(trace_child)
     if os.name == "nt":
         print("[ChatStudio] Loading native Python MCP modules.", file=sys.stderr, flush=True)
     from mcp_server.server import main, mcp
