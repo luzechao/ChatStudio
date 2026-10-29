@@ -24,10 +24,6 @@ jobs:
             platform: mac
             arch: arm64
             executable: release/mac-arm64/ChatStudio.app/Contents/MacOS/ChatStudio
-          - os: macos-15-intel
-            platform: mac
-            arch: x64
-            executable: release/mac/ChatStudio.app/Contents/MacOS/ChatStudio
           - os: ubuntu-24.04
             platform: linux
             arch: x64
@@ -118,4 +114,4 @@ jobs:
           sha256sum * > SHA256SUMS.txt
           gh release create "$TAG" ./* --verify-tag --draft --prerelease \
             --title "ChatStudio $TAG — unsigned desktop preview" \
-            --notes "Unsigned preview installers for macOS (Apple Silicon and Intel), Windows x64, and Linux x64. Native SDK/CLI, Python, EnergyPlus, Ruby gems, and Measure assets are NOT bundled. Configure an external native runtime on macOS/Linux. Windows native modeling remains disabled pending a validated sandbox adapter; AI chat is available. These are not signed/notarized production distributions. See the repository README for setup and limitations."
+            --notes "Unsigned preview installers for macOS Apple Silicon, Windows x64, and Linux x64. Native SDK/CLI, Python, EnergyPlus, Ruby gems, and Measure assets are NOT bundled. Configure an external native runtime on macOS/Linux. Windows native modeling remains disabled pending a validated sandbox adapter; AI chat is available. These are not signed/notarized production distributions. See the repository README for setup and limitations."

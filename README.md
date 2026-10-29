@@ -234,7 +234,7 @@ request/streaming behavior; it does not verify a specific remote provider or key
 
 ## Desktop builds and GitHub releases
 
-The GitHub Actions workflow builds macOS Apple Silicon/Intel (DMG and ZIP),
+The GitHub Actions workflow builds macOS Apple Silicon (DMG and ZIP),
 Windows x64 (NSIS installer), and Linux x64 (AppImage and DEB). Pushes to `main`,
 pull requests, and manual runs execute type checks, unit tests, local provider
 diagnostics, packaging, and a packaged-app smoke test. Linux confinement tests
@@ -258,7 +258,7 @@ workflow verification remain release blockers for production distributions.
 Local packaging:
 
 ```sh
-npm run package -- --mac --arm64  # On macOS; --x64 for Intel
+npm run package -- --mac --arm64  # On Apple Silicon macOS
 npm run package -- --win --x64    # On Windows
 npm run package -- --linux --x64  # On Linux
 CHATSTUDIO_EXECUTABLE="release/mac-arm64/ChatStudio.app/Contents/MacOS/ChatStudio" npm run test:package
