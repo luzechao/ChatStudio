@@ -118,6 +118,9 @@ Ruby in this environment. This still loads the Measure and regenerates its
 metadata; Python Measures, workflow execution and EnergyPlus use the current CLI.
 The classic command is deprecated upstream, so this compatibility patch is tied
 to the pinned SDK version.
+Isolated Windows Python launchers explicitly enable UTF-8 (`-I -X utf8`):
+`-I` ignores `PYTHONUTF8`, and the CLI's Unicode output otherwise breaks
+subprocess text decoding under a legacy Windows code page.
 Linux
 builds need Bubblewrap, socat, patchelf and enabled Ubuntu deb-src repositories;
 CI bundles their required files and source rather than requiring users to install

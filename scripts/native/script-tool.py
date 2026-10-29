@@ -26,7 +26,7 @@ def register_script_tool(mcp, root):
         with tempfile.TemporaryDirectory(prefix="script-", dir=workspace / "tmp") as directory:
             source = Path(directory) / ("script" + suffix)
             source.write_text(code, encoding="utf-8")
-            command = [str(executable), "-I", str(source)] if language == "Python" else [
+            command = [str(executable), "-I", "-X", "utf8", str(source)] if language == "Python" else [
                 str(root / ("openstudio/bin/openstudio.exe" if os.name == "nt"
                             else "openstudio/bin/openstudio")),
                 str(root / "ruby-driver.rb"), str(source)]

@@ -21,7 +21,7 @@ export async function bundledConfig(root: string, workspace: string): Promise<Ap
   return validateConfig({
     workspace, bundledRuntime: true,
     backend: {
-      command, args: windows ? ["-I", path.join(root, "launch.py"), "openstudio-mcp"] : [], readRoots: [root],
+      command, args: windows ? ["-I", "-X", "utf8", path.join(root, "launch.py"), "openstudio-mcp"] : [], readRoots: [root],
       environment: {
         OPENSTUDIO_CLI: cli,
         ENERGYPLUS_EXE_PATH: energyplus,

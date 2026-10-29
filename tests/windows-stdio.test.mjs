@@ -25,7 +25,7 @@ metadata = ["openstudio", "measure", "-u", str(staged_measure)]
     const patched = await readFile(file, "utf8");
     assert.match(patched, /os\.environ\["OPENSTUDIO_CLI"\]/);
     assert.match(patched, /parents\[2\] \/ "ruby-driver.rb"/);
-    assert.match(patched, /sys\.executable, "-I", "-c"/);
+    assert.match(patched, /sys\.executable, "-I", "-X", "utf8", "-c"/);
     assert.match(patched, /\["openstudio", "classic", "measure", "-u", str\(staged_measure\)\]/);
     assert.equal(patched.split("timeout=10").length, 3);
     assert.doesNotMatch(patched, /\["ruby"|\["python3"/);

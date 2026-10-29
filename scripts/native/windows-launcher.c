@@ -45,10 +45,10 @@ int wmain(int argc, wchar_t **argv) {
         swprintf_s(python, 32768, L"%ls\\python-runtime\\python.exe", root);
         swprintf_s(script, 32768, L"%ls\\launch.py", root);
     }
-    int prefix = ruby || direct_python ? 2 : 4;
+    int prefix = ruby ? 2 : direct_python ? 4 : 6;
     int count = prefix + argc - 1;
-    const wchar_t *prefix_args[] = { python, ruby ? script : L"-I", script, name };
-    wchar_t **args = calloc((size_t)argc + 5, sizeof(wchar_t *));
+    const wchar_t *prefix_args[] = { python, ruby ? script : L"-I", L"-X", L"utf8", script, name };
+    wchar_t **args = calloc((size_t)argc + 7, sizeof(wchar_t *));
     if (!args) return 1;
     for (int i = 0; i < count; i++) {
         const wchar_t *value = i < prefix ? prefix_args[i] : argv[i - prefix + 1];
