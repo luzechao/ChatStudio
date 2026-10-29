@@ -3,7 +3,39 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { patchWindowsEventLoop } from "../scripts/native/patch-windows-stdio.mjs";
+import { patchWindowsEventLoop, patchWindowsMeasureSyntax } from "../scripts/native/patch-windows-stdio.mjs";
+
+test("Windows Measure syntax checks launch direct interpreters with closed stdin and bounded timeouts", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "chatstudio-syntax-patch-"));
+  const file = path.join(directory, "mcp_server/skills/measure_authoring/operations.py");
+  try {
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, `import subprocess
+proc = subprocess.run(
+    ["ruby", "-c", str(script_path)],
+    capture_output=True, text=True, timeout=10, check=False,
+)
+proc = subprocess.run(
+    ["python3", "-c", f"compile({code!r}, {str(script_path)!r}, 'exec')"],
+    capture_output=True, text=True, timeout=10, check=False,
+)
+`);
+    await patchWindowsMeasureSyntax(directory);
+    const patched = await readFile(file, "utf8");
+    assert.match(patched, /os\.environ\["OPENSTUDIO_CLI"\]/);
+    assert.match(patched, /parents\[2\] \/ "ruby-driver.rb"/);
+    assert.match(patched, /sys\.executable, "-I", "-c"/);
+    assert.equal(patched.split("stdin=subprocess.DEVNULL").length, 3);
+    assert.equal(patched.split("timeout=10").length, 3);
+    assert.doesNotMatch(patched, /\["ruby"|\["python3"/);
+    await patchWindowsMeasureSyntax(directory);
+    assert.equal(await readFile(file, "utf8"), patched);
+    await writeFile(file, "unexpected");
+    await assert.rejects(patchWindowsMeasureSyntax(directory), /Unexpected pinned MCP Measure syntax source/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("Windows event-loop patch uses named pipes and checks pinned CPython source", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "chatstudio-event-loop-"));

@@ -49,3 +49,24 @@ export async function patchWindowsEventLoop(stdlib) {
   }
   await writeFile(file, source);
 }
+
+export async function patchWindowsMeasureSyntax(sitePackages) {
+  const file = path.join(sitePackages, "mcp_server/skills/measure_authoring/operations.py");
+  let source = await readFile(file, "utf8");
+  const replacements = [
+    ["import subprocess\n", "import subprocess\nimport os\nimport sys\n"],
+    ['["ruby", "-c", str(script_path)],',
+      '[os.environ["OPENSTUDIO_CLI"], str(Path(os.environ["OPENSTUDIO_CLI"]).parents[2] / "ruby-driver.rb"), "-c", str(script_path)],'],
+    ['["python3", "-c", f"compile({code!r}, {str(script_path)!r}, \'exec\')"],',
+      '[sys.executable, "-I", "-c", f"compile({code!r}, {str(script_path)!r}, \'exec\')"],'],
+    ["capture_output=True, text=True, timeout=10, check=False,",
+      "stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=10, check=False,"],
+  ];
+  for (const [before, after] of replacements) {
+    if (source.includes(after)) continue;
+    const expected = before.startsWith("capture_output") ? 2 : 1;
+    if (source.split(before).length !== expected + 1) throw new Error("Unexpected pinned MCP Measure syntax source");
+    source = source.replaceAll(before, after);
+  }
+  await writeFile(file, source);
+}

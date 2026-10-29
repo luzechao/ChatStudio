@@ -4,7 +4,7 @@ import { cp, mkdir, readFile, readdir, realpath, writeFile, chmod, rm } from "no
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { patchWindowsEventLoop, patchWindowsStdio } from "./native/patch-windows-stdio.mjs";
+import { patchWindowsEventLoop, patchWindowsMeasureSyntax, patchWindowsStdio } from "./native/patch-windows-stdio.mjs";
 
 const platform = `${process.platform}-${process.arch}`;
 const platforms = {
@@ -134,6 +134,7 @@ if (await exists(lock)) await run(python, ["-m", "pip", "install", "-r", lock]);
 await run(python, ["-m", "pip", "install", "--no-index", "--no-deps", "--find-links", wheels, "openstudio-mcp==1.2.1"]);
 await run(python, ["-m", "pip", "install", "--find-links", wheels, "openstudio-mcp==1.2.1", "pytest==8.4.2"]);
 await run(python, ["-m", "pip", "check"]);
+if (windows) await patchWindowsMeasureSyntax(path.join(bundle, "python-runtime/Lib/site-packages"));
 const frozen = await run(python, ["-m", "pip", "freeze"], { capture: true });
 await writeFile(path.join(bundle, "python-requirements.txt"), `${frozen}\n`);
 await cp(path.join(mcp, ".claude/skills"), path.join(bundle, "skills"), { recursive: true });
@@ -234,7 +235,7 @@ for (const directory of ["openstudio", "python-runtime", "measures", "gems"]) aw
 await writeFile(path.join(bundle, "manifest.json"), JSON.stringify({
   schema: 1, platform: process.platform, arch: process.arch, openstudio: "3.11.0", energyplus: "25.2.0",
   python: "3.13.18", ruby: "3.2.2", mcpRevision, archives, measures,
-  ...(windows ? { sandboxRevision, sandboxStdinPatch: 1, pythonNamedPipeWakeupPatch: 1 } : {}),
+  ...(windows ? { sandboxRevision, sandboxStdinPatch: 1, pythonNamedPipeWakeupPatch: 1, mcpMeasureSyntaxPatch: 1 } : {}),
 }, null, 2));
 await writeFile(path.join(bundle, "licenses/README.txt"),
   "Third-party components retain their upstream licenses. OpenStudio(R), EnergyPlus, Python, Ruby/gems and Python packages retain license files in their respective directories. ComStock/Common and ripgrep notices are in this directory. gbXML assets are not distributed. Linux socat is GPL-2.0-or-later; corresponding source is available from Ubuntu's source archive (apt source socat). Bubblewrap source is available from Ubuntu's source archive (apt source bubblewrap).\n");
