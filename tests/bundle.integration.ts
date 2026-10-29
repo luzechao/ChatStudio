@@ -157,9 +157,12 @@ m.save(openstudio.path(${JSON.stringify(osm)}), True)
     console.log("EnergyPlus log:", JSON.stringify(logs));
     assert.match(JSON.stringify(logs), /EnergyPlus Completed Successfully-- \d+ Warning; 0 Severe Errors/i);
     assert.match(await readFile(path.join(root, "python-requirements.txt"), "utf8"), /openstudio==3.11.0/);
+  } catch (error) {
+    console.error("Native bundle workflow failed:", error);
+    throw error;
   } finally {
     await backend.disconnect();
     await SandboxManager.reset();
-    await rm(base, { recursive: true, force: true });
+    await rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
   }
 });
