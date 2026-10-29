@@ -95,6 +95,17 @@ export async function patchWindowsMcpChildren(sitePackages) {
     ['"PATH", "HOME", "USER",', '"SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATH", "HOME", "USER",'],
     ['            env["TMPDIR"] = str(tmp)',
       '            env["TMPDIR"] = str(tmp)\n            if os.name == "nt":\n                env["TEMP"] = env["TMP"] = str(tmp)'],
+    ["    return env\n", `    if os.name == "nt":
+        home = Path(work_dir).resolve()
+        env["HOME"] = env["USERPROFILE"] = str(home)
+        env["HOMEDRIVE"] = home.drive
+        env["HOMEPATH"] = str(home)[len(home.drive):]
+        for key, name in (("APPDATA", "Roaming"), ("LOCALAPPDATA", "Local")):
+            directory = home / "AppData" / name
+            directory.mkdir(parents=True, exist_ok=True)
+            env[key] = str(directory)
+    return env
+`],
   ];
   for (const [before, after] of replacements) {
     if (source.includes(after)) continue;

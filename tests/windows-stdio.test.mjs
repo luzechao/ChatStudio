@@ -54,7 +54,7 @@ test("Windows native children close protocol stdin and preserve only required Wi
       await writeFile(file, `subprocess.${method}(["command"], timeout=10)\r\n`.repeat(count));
     }
     const envFile = path.join(directory, "mcp_server/sandbox.py");
-    await writeFile(envFile, '"PATH", "HOME", "USER",\n            env["TMPDIR"] = str(tmp)');
+    await writeFile(envFile, '"PATH", "HOME", "USER",\n            env["TMPDIR"] = str(tmp)\n    return env\n');
     await patchWindowsMcpChildren(directory);
     for (const [name, method, count] of sites) {
       const relative = name.startsWith("python_ems") ? `${name}.py` : `${name}/operations.py`;
@@ -64,7 +64,9 @@ test("Windows native children close protocol stdin and preserve only required Wi
     const environment = await readFile(envFile, "utf8");
     assert.match(environment, /"SYSTEMROOT", "WINDIR", "TEMP", "TMP"/);
     assert.match(environment, /env\["TEMP"\] = env\["TMP"\] = str\(tmp\)/);
-    assert.doesNotMatch(environment, /USERPROFILE|APPDATA/);
+    assert.match(environment, /env\["HOME"\] = env\["USERPROFILE"\] = str\(home\)/);
+    assert.match(environment, /env\["HOMEDRIVE"\] = home\.drive/);
+    assert.match(environment, /directory = home \/ "AppData" \/ name/);
     await patchWindowsMcpChildren(directory);
     assert.equal(await readFile(envFile, "utf8"), environment);
     await writeFile(envFile, "unexpected");

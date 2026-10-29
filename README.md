@@ -109,7 +109,9 @@ interpreter descendant holding the captured output pipes open after a timeout.
 Other Windows native child commands also receive closed stdin rather than the
 MCP protocol stream. Their clean environment preserves `SYSTEMROOT`/`WINDIR`
 for Windows DLL loading and redirects `TEMP`/`TMP` to the project, without
-passing through user-profile paths or credentials.
+passing through host user-profile paths or credentials. Windows profile,
+home-drive and application-data variables point to project-owned directories;
+RubyGems requires these even for local Measure metadata updates.
 Linux
 builds need Bubblewrap, socat, patchelf and enabled Ubuntu deb-src repositories;
 CI bundles their required files and source rather than requiring users to install
