@@ -69,6 +69,8 @@ test("Windows native children close protocol stdin and preserve only required Wi
     assert.match(environment, /env\["HOME"\] = env\["USERPROFILE"\] = str\(home\)/);
     assert.match(environment, /env\["HOMEDRIVE"\] = home\.drive/);
     assert.match(environment, /directory = home \/ "AppData" \/ name/);
+    assert.match(environment, /env\["PROGRAMDATA"\] = env\["ALLUSERSPROFILE"\] = str\(common\)/);
+    assert.match(environment, /env\["WINDIR"\] = env\["SYSTEMROOT"\]/);
     await patchWindowsMcpChildren(directory);
     assert.equal(await readFile(envFile, "utf8"), environment);
     await writeFile(envFile, "unexpected");

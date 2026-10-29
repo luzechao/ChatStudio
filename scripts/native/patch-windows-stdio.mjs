@@ -106,6 +106,11 @@ export async function patchWindowsMcpChildren(sitePackages) {
             directory = home / "AppData" / name
             directory.mkdir(parents=True, exist_ok=True)
             env[key] = str(directory)
+        common = home / "ProgramData"
+        common.mkdir(exist_ok=True)
+        env["PROGRAMDATA"] = env["ALLUSERSPROFILE"] = str(common)
+        env["WINDIR"] = env["SYSTEMROOT"]
+        env["SYSTEMDRIVE"] = Path(env["SYSTEMROOT"]).drive
     return env
 `],
   ];

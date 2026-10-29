@@ -111,7 +111,8 @@ MCP protocol stream. Their clean environment preserves `SYSTEMROOT`/`WINDIR`
 for Windows DLL loading and redirects `TEMP`/`TMP` to the project, without
 passing through host user-profile paths or credentials. Windows profile,
 home-drive and application-data variables point to project-owned directories;
-RubyGems requires these even for local Measure metadata updates.
+this includes `PROGRAMDATA`/`ALLUSERSPROFILE` for RubyGems' system-configuration
+lookup, without granting access to the machine's real shared configuration.
 Ruby Measure XML updates on Windows use OpenStudio 3.11's supported `classic
 measure -u` command because the new C++ MeasureManager crashes while initializing
 Ruby in this environment. This still loads the Measure and regenerates its
