@@ -6,7 +6,19 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { SandboxManager } from "@carderne/sandbox-runtime";
-import { prepareSandbox } from "../src/main/sandbox.js";
+import { prepareSandbox, windowsSandboxArgv } from "../src/main/sandbox.js";
+
+test("Windows launcher replaces case-insensitive environment defaults without changing literal target arguments", () => {
+  const original = ["srt-win.exe", "exec", "--quiet", "--env", "PATH=host-tools", "--env", "Path=other-host-tools",
+    "--env", "HOME=host-home", "--env", "HTTPS_PROXY=http://proxy", "--", "python.exe", "-I", 'literal "value"', "", ""];
+  assert.deepEqual(windowsSandboxArgv(original, "python.exe", { PATH: "bundled-tools", HOME: "project-home" }),
+    ["srt-win.exe", "exec", "--quiet", "--env", "HTTPS_PROXY=http://proxy",
+      "--env", "PATH=bundled-tools", "--env", "HOME=project-home", "--", "python.exe", "-I", 'literal "value"', ""]);
+  assert.equal(original.at(-1), "");
+  assert.throws(() => windowsSandboxArgv(["srt-win.exe"], "python.exe", {}), /command argument/);
+  assert.throws(() => windowsSandboxArgv(["srt-win.exe", "--", "wrong.exe", ""], "python.exe", {}), /launcher arguments/);
+  assert.throws(() => windowsSandboxArgv(["srt-win.exe", "--env", "--", "python.exe", ""], "python.exe", {}), /environment argument/);
+});
 
 test("private data protection refuses home directories and filesystem roots before changing permissions", async () => {
   const workspace = await mkdtemp(path.join(tmpdir(), "chatstudio-private-path-"));

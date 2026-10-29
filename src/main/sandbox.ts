@@ -19,6 +19,25 @@ export function sandboxPolicy(workspace: string, readRoots: string[], privateRoo
   };
 }
 
+export function windowsSandboxArgv(argv: string[], command: string, environment: Record<string, string>): string[] {
+  if (argv.at(-1) !== "") throw new Error("Unexpected Windows sandbox command argument.");
+  const separator = argv.indexOf("--");
+  if (separator < 0 || argv[separator + 1] !== command) throw new Error("Unexpected Windows sandbox launcher arguments.");
+  const controlled = new Set(Object.keys(environment).map((key) => key.toUpperCase()));
+  const prefix: string[] = [];
+  for (let i = 0; i < separator; i++) {
+    if (argv[i] !== "--env") {
+      prefix.push(argv[i]);
+      continue;
+    }
+    const entry = argv[++i];
+    if (i >= separator || !entry.includes("=")) throw new Error("Unexpected Windows sandbox environment argument.");
+    if (!controlled.has(entry.slice(0, entry.indexOf("=")).toUpperCase())) prefix.push("--env", entry);
+  }
+  return [...prefix, ...Object.entries(environment).flatMap(([key, value]) => ["--env", `${key}=${value}`]),
+    "--", ...argv.slice(separator + 1, -1)];
+}
+
 export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
   const config = validateConfig(raw, true);
   const workspace = await realpath(config.workspace);
@@ -96,15 +115,9 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
     windows ? "" : expression,
     windows ? { exe: command, args: config.backend.args } : "/bin/sh", undefined, undefined, workspace,
   );
-  if (windows) {
-    // The runtime's shell-shaped API appends one command argument. Native stdio
-    // servers need direct handle inheritance, not PowerShell's text pipeline.
-    if (wrapped.argv.pop() !== "") throw new Error("Unexpected Windows sandbox command argument.");
-    const separator = wrapped.argv.indexOf("--");
-    if (separator < 0 || wrapped.argv[separator + 1] !== command) throw new Error("Unexpected Windows sandbox launcher arguments.");
-    wrapped.argv.splice(separator, 0, ...Object.entries(env).flatMap(([key, value]) => ["--env", `${key}=${value}`]));
-  }
-  const [executable, ...args] = wrapped.argv;
+  // Replace runtime defaults instead of appending duplicate Windows environment keys.
+  const argv = windows ? windowsSandboxArgv(wrapped.argv, command, env) : wrapped.argv;
+  const [executable, ...args] = argv;
   if (!executable) throw new Error("Sandbox did not return a launcher.");
   const proxyEnv: Record<string, string> = {};
   for (const key of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"]) {
