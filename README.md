@@ -82,13 +82,20 @@ Included runtimes and assets:
 Build and verify locally:
 
 ```sh
-npm run setup:bundle        # Downloads/builds only inside .runtime/
+npm run setup:bundle        # Assembles runtimes and platform sandbox helpers
 npm run test:bundle         # Real SDK, Ruby/Python Measures, native simulation
 npm run package:native     # Native installer for the current supported platform
 npm run test:relocated     # Copies app to a path with spaces; native resources read-only
 ```
 
-Windows builds need MSVC (`cl`) to compile bundled command launchers. Linux
+Windows builds need MSVC (`cl`) and Rust/Cargo to compile bundled command launchers
+and the sandbox helper. The pinned pi-sandbox 0.0.77 Windows helper is rebuilt
+with a narrow stdin-forwarding patch: upstream closes stdin after its control
+frame, which prevents MCP communication. Assembly replaces its vendored
+`node_modules` binary so provisioning, development tests, and packaged execution
+all use the same helper. The patch and upstream license are included in the
+bundle; the isolated account, restricted token, job, ACL and WFP policy remain
+unchanged. Linux
 builds need Bubblewrap, socat, patchelf and enabled Ubuntu deb-src repositories;
 CI bundles their required files and source rather than requiring users to install
 these tools. Standard OS libraries and kernel features remain prerequisites.

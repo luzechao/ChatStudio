@@ -4,6 +4,7 @@ import { cp, mkdir, readFile, readdir, realpath, writeFile, chmod, rm } from "no
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { patchWindowsStdio } from "./native/patch-windows-stdio.mjs";
 
 const platform = `${process.platform}-${process.arch}`;
 const platforms = {
@@ -95,6 +96,20 @@ await mkdir(downloads, { recursive: true });
 await mkdir(sources, { recursive: true });
 await mkdir(bundle, { recursive: true });
 const archives = [];
+const sandboxRevision = "0d653440a1089d1ad71aa0a37d621dc677c26651";
+if (windows) {
+  const sandbox = await checkout("sandbox-runtime", "carderne/sandbox-runtime", sandboxRevision, ["vendor/srt-win-src", "LICENSE"]);
+  const build = path.join(downloads, "srt-win-src");
+  await cp(path.join(sandbox, "vendor/srt-win-src"), build, { recursive: true });
+  await patchWindowsStdio(build);
+  await run("cargo", ["build", "--release", "--locked", "--manifest-path", path.join(build, "Cargo.toml")]);
+  // All runtime entry points (including UAC provisioning) resolve this same helper.
+  await cp(path.join(build, "target/release/srt-win.exe"),
+    path.join(root, `node_modules/@carderne/sandbox-runtime/vendor/srt-win/${process.arch}/srt-win.exe`));
+  await mkdir(path.join(bundle, "licenses"), { recursive: true });
+  await cp(path.join(sandbox, "LICENSE"), path.join(bundle, "licenses/sandbox-runtime-LICENSE"));
+  await cp(path.join(scriptDir, "patch-windows-stdio.mjs"), path.join(bundle, "licenses/sandbox-runtime-stdio-patch.mjs"));
+}
 archives.push(await archive(`openstudio-3.11.0-${platform}.tar.gz`,
   `https://github.com/NatLabRockies/OpenStudio/releases/download/v3.11.0/OpenStudio-3.11.0%2B241b8abb4d-${target.os}.tar.gz`,
   target.osHash, path.join(bundle, "openstudio"), process.platform === "linux" ? 4 : 1));
@@ -214,6 +229,7 @@ for (const directory of ["openstudio", "python-runtime", "measures", "gems"]) aw
 await writeFile(path.join(bundle, "manifest.json"), JSON.stringify({
   schema: 1, platform: process.platform, arch: process.arch, openstudio: "3.11.0", energyplus: "25.2.0",
   python: "3.13.18", ruby: "3.2.2", mcpRevision, archives, measures,
+  ...(windows ? { sandboxRevision, sandboxStdinPatch: 1 } : {}),
 }, null, 2));
 await writeFile(path.join(bundle, "licenses/README.txt"),
   "Third-party components retain their upstream licenses. OpenStudio(R), EnergyPlus, Python, Ruby/gems and Python packages retain license files in their respective directories. ComStock/Common and ripgrep notices are in this directory. gbXML assets are not distributed. Linux socat is GPL-2.0-or-later; corresponding source is available from Ubuntu's source archive (apt source socat). Bubblewrap source is available from Ubuntu's source archive (apt source bubblewrap).\n");

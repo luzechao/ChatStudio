@@ -61,14 +61,15 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
 
     if (process.platform === "win32") {
       const pythonProbe = path.join(workspace, "stdio-probe.py");
-      await writeFile(pythonProbe, 'import sys\nprint("PYTHON_STDIO=" + sys.stdin.readline().strip(), flush=True)\nprint(repr(sys.argv[1:]), flush=True)\n');
+      await writeFile(pythonProbe, 'import sys\nprint("PYTHON_STDIO=" + sys.stdin.readline().strip(), flush=True)\nprint("REMAINING_STDIN=" + str(len(sys.stdin.read())), flush=True)\nprint(repr(sys.argv[1:]), flush=True)\n');
       const { warnings: _pythonWarnings, ...pythonLaunch } = await prepareSandbox({
         ...config, backend: { ...config.backend,
           command: path.join(root, "bin/python3.exe"),
           args: [pythonProbe, 'literal "quoted" value', "", "trailing\\"] },
       }, privateRoot);
-      const python = await run(pythonLaunch.command, pythonLaunch.args, { ...pythonLaunch, input: "roundtrip\n" });
+      const python = await run(pythonLaunch.command, pythonLaunch.args, { ...pythonLaunch, input: `roundtrip\n${"x".repeat(20000)}\n` });
       assert.match(python, /PYTHON_STDIO=roundtrip/);
+      assert.match(python, /REMAINING_STDIN=20001/);
       assert.ok(python.includes(`['literal "quoted" value', '', 'trailing\\\\']`), python);
       console.log("Windows sandbox Python stdin/stdout roundtrip passed.");
       await SandboxManager.reset();

@@ -14,7 +14,7 @@
     "dev": "npm run build && electron .",
     "build": "tsc -p tsconfig.main.json && vite build",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.main.json --noEmit",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --test tests/*.test.ts tests/*.test.mjs",
     "setup:native": "node scripts/setup-native.mjs",
     "setup:bundle": "node scripts/setup-bundle.mjs",
     "test:native": "tsx --test tests/native.integration.ts",

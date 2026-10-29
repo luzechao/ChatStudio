@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { AgentEvent, AppConfig, Conversation, CredentialScope, ModelChoice, ProjectInfo, ProjectState } from "../shared/contracts.js";
 import { errorMessage } from "../shared/contracts.js";
 import { CUSTOM_PROVIDER, validateCustomEndpoint } from "../shared/contracts.js";
@@ -63,7 +63,7 @@ export function App() {
       .catch((e: unknown) => setError(errorMessage(e)));
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let active = true;
     setApiKey(""); setRememberKey(false); setKeyChanged(false); setEncryptionAvailable(false);
     if (!credentialScope) { setCredentialBusy(false); return; }
