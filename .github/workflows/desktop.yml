@@ -24,14 +24,17 @@ jobs:
             platform: mac
             arch: arm64
             executable: release-native/mac-arm64/ChatStudio.app/Contents/MacOS/ChatStudio
+            bundle: release-native/mac-arm64/ChatStudio.app/Contents/Resources/native
           - os: ubuntu-24.04
             platform: linux
             arch: x64
             executable: release-native/linux-unpacked/chatstudio
+            bundle: release-native/linux-unpacked/resources/native
           - os: windows-2022
             platform: win
             arch: x64
             executable: release-native/win-unpacked/ChatStudio.exe
+            bundle: release-native/win-unpacked/resources/native
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -59,7 +62,7 @@ jobs:
         run: npm run setup:bundle
       - name: Provision Windows sandbox on disposable CI runner
         if: runner.os == 'Windows'
-        run: node --input-type=module -e "import {installWindowsSandbox} from '@carderne/sandbox-runtime'; const r=installWindowsSandbox(); if(r.cancelled || !r.user.provisioned) throw new Error('Windows sandbox provisioning failed')"
+        run: node --input-type=module -e "import {installWindowsSandbox,getSrtWinPath} from '@carderne/sandbox-runtime'; import {execFileSync} from 'node:child_process'; const r=installWindowsSandbox(); if(r.cancelled || !r.user.provisioned) throw new Error('Windows sandbox provisioning failed'); console.log(execFileSync(getSrtWinPath(),['exec','--quiet','--','C:/Windows/System32/whoami.exe'],{cwd:'C:/Windows',timeout:120000,encoding:'utf8'}))"
       - name: Require tag to match package version
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
@@ -101,6 +104,11 @@ jobs:
         env:
           CHATSTUDIO_EXECUTABLE: release-native/linux-unpacked/chatstudio
           CHATSTUDIO_EXPECT_BUNDLE: "1"
+      - name: Verify native execution from packaged resources
+        run: npm run test:bundle
+        env:
+          CHATSTUDIO_BUNDLE: ${{ github.workspace }}/${{ matrix.bundle }}
+          CHATSTUDIO_SANDBOX_HELPERS: ${{ github.workspace }}/${{ matrix.bundle }}/sandbox
       - uses: actions/upload-artifact@v4
         with:
           name: ChatStudio-${{ matrix.platform }}-${{ matrix.arch }}

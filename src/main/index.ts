@@ -1,6 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, utilityProcess, type UtilityProcess } from "electron";
 import { mkdir, open, readFile, realpath, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultConfig, validateConfig } from "./config.js";
@@ -11,7 +13,7 @@ import { bundledConfig } from "./native-runtime.js";
 import { Projects } from "./projects.js";
 import { Credentials } from "./credentials.js";
 import { projectFile } from "./inspection.js";
-import { getWindowsSandboxUserStatus, installWindowsSandbox } from "@carderne/sandbox-runtime";
+import { getSrtWinPath, getWindowsSandboxUserStatus, installWindowsSandbox } from "@carderne/sandbox-runtime";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 let window: BrowserWindow | undefined;
@@ -181,12 +183,18 @@ const channels: Record<string, (...args: unknown[]) => unknown> = {
     windows: process.platform === "win32",
     ready: process.platform !== "win32" || getWindowsSandboxUserStatus().provisioned,
   }),
-  "sandbox:install": () => {
+  "sandbox:install": async () => {
     if (process.platform !== "win32") throw new Error("Windows sandbox setup is only available on Windows.");
     if (promptRunning || projectChanging || viewerRunning) throw new Error("Wait for the current operation before sandbox setup.");
-    const result = installWindowsSandbox();
-    if (result.cancelled) throw new Error("Windows sandbox setup was cancelled. Native execution remains disabled.");
-    if (!result.user.provisioned) throw new Error("Windows sandbox setup did not provision the sandbox account.");
+    projectChanging = true;
+    try {
+      const result = installWindowsSandbox();
+      if (result.cancelled) throw new Error("Windows sandbox setup was cancelled. Native execution remains disabled.");
+      if (!result.user.provisioned) throw new Error("Windows sandbox setup did not provision the sandbox account.");
+      await promisify(execFile)(getSrtWinPath(), ["exec", "--quiet", "--",
+        path.join(process.env.SystemRoot || "C:\\Windows", "System32/whoami.exe")],
+      { cwd: process.env.SystemRoot || "C:\\Windows", timeout: 120_000 });
+    } finally { projectChanging = false; }
   },
   "credential:load": (scope) => credentials.load(scope),
   "credential:save": (scope, apiKey) => credentials.save(scope, apiKey),

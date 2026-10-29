@@ -54,7 +54,7 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
       console.log(JSON.stringify(out));
     `);
     const { warnings: _warnings, ...launch } = await prepareSandbox({
-      workspace, backend: { command: process.execPath, args: [script], readRoots: [], environment: {} },
+      workspace, backend: { command: process.execPath, args: ["--preserve-symlinks-main", script], readRoots: [], environment: {} },
     }, privateRoot);
     const result = await new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
       const child = spawn(launch.command, launch.args, launch);
@@ -103,7 +103,7 @@ test("internet switch allows and then blocks public outbound connections through
     `);
     for (const internetAccess of [false, true, false]) {
       const { warnings: _warnings, ...launch } = await prepareSandbox({
-        workspace, internetAccess, backend: { command: process.execPath, args: [script], readRoots: [], environment: {} },
+        workspace, internetAccess, backend: { command: process.execPath, args: ["--preserve-symlinks-main", script], readRoots: [], environment: {} },
       }, privateRoot);
       const output = await new Promise<string>((resolve, reject) => {
         const child = spawn(launch.command, launch.args, launch);

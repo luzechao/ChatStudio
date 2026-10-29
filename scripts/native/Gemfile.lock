@@ -112,6 +112,7 @@ GEM
 
 PLATFORMS
   arm64-darwin-24
+  ruby
 
 DEPENDENCIES
   openstudio-extension (= 0.9.7)

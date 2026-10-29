@@ -45,6 +45,8 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
   await mkdir(privateRoot);
   try {
     const config = await bundledConfig(root, workspace);
+    assert.match(await run(path.join(root, `sandbox/rg${process.platform === "win32" ? ".exe" : ""}`), ["--version"]), /ripgrep 15\.2\.0/);
+    await assert.rejects(readFile(path.join(root, "seed_empty.osm")), { code: "ENOENT" });
     const probe = path.join(workspace, "probe.rb");
     await writeFile(probe, 'require "openstudio-standards"\nrequire "minitest/autorun"\nputs "BUNDLED_RUBY=#{RUBY_VERSION}"\nputs Standard.build("90.1-2019").class\n');
     const { warnings: _warnings, ...launch } = await prepareSandbox({

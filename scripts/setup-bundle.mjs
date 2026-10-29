@@ -51,7 +51,7 @@ async function exists(file) {
   catch (error) { if (error.code === "ENOENT") return false; throw error; }
 }
 
-async function archive(name, url, sha256, target) {
+async function archive(name, url, sha256, target, strip = 1) {
   const file = path.join(downloads, name);
   if (!await exists(file)) {
     await run("curl", ["-fL", "--retry", "3", url, "-o", file]);
@@ -68,8 +68,8 @@ async function archive(name, url, sha256, target) {
   if (!await exists(marker)) {
     await mkdir(target, { recursive: true });
     if (file.endsWith(".zip")) {
-      await run("tar", ["-xf", file, "-C", target, "--strip-components=1"]);
-    } else await run("tar", ["-xzf", file, "-C", target, "--strip-components=1"]);
+      await run("tar", ["-xf", file, "-C", target, `--strip-components=${strip}`]);
+    } else await run("tar", ["-xzf", file, "-C", target, `--strip-components=${strip}`]);
     await writeFile(marker, sha256);
   }
   return { name, url, sha256 };
@@ -97,7 +97,7 @@ await mkdir(bundle, { recursive: true });
 const archives = [];
 archives.push(await archive(`openstudio-3.11.0-${platform}.tar.gz`,
   `https://github.com/NatLabRockies/OpenStudio/releases/download/v3.11.0/OpenStudio-3.11.0%2B241b8abb4d-${target.os}.tar.gz`,
-  target.osHash, path.join(bundle, "openstudio")));
+  target.osHash, path.join(bundle, "openstudio"), process.platform === "linux" ? 4 : 1));
 archives.push(await archive(`python-3.13.18-${platform}.tar.gz`,
   `https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.13.18%2B20261026-${target.python}-install_only_stripped.tar.gz`,
   target.pythonHash, path.join(bundle, "python-runtime")));
