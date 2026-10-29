@@ -58,8 +58,33 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
     await SandboxManager.reset();
 
     await backend.connect(config, privateRoot);
-    assert.equal(backend.tools.length, 206);
+    assert.equal(backend.tools.length, 207);
     const call = async (name: string, args: Record<string, unknown>) => payload(await backend.call(name, args));
+    const pythonScript = await call("run_sandboxed_script", { language: "Python",
+      code: 'import openstudio\nfrom pathlib import Path\nPath("inputs/python-script.txt").write_text("Python sandbox verified")\nprint(openstudio.openStudioVersion())' });
+    assert.match(String(pythonScript.stdout), /3\.11\.0/);
+    const rubyScript = await call("run_sandboxed_script", { language: "Ruby",
+      code: 'File.write("inputs/ruby-script.txt", "Ruby sandbox verified")\nputs OpenStudio.openStudioVersion' });
+    assert.match(String(rubyScript.stdout), /3\.11\.0/);
+    assert.equal(await readFile(path.join(workspace, "inputs/python-script.txt"), "utf8"), "Python sandbox verified");
+    assert.equal(await readFile(path.join(workspace, "inputs/ruby-script.txt"), "utf8"), "Ruby sandbox verified");
+    const secret = path.join(privateRoot, "script-secret.txt");
+    await writeFile(secret, "must-not-read");
+    for (const language of ["Python", "Ruby"]) {
+      const source = JSON.stringify(secret.replaceAll("\\", "/"));
+      const denied = await backend.call("run_sandboxed_script", { language,
+        code: language === "Python" ? `from pathlib import Path\nprint(Path(${source}).read_text())` : `puts File.read(${source})` });
+      assert.equal(denied.isError, true, `${language} must not read ChatStudio private files`);
+      const failed = await backend.call("run_sandboxed_script", { language,
+        code: language === "Python" ? "raise RuntimeError('script-failure-test')" : "raise 'script-failure-test'" });
+      assert.equal(failed.isError, true, `${language} failures must reach the caller`);
+      const timedOut = await backend.call("run_sandboxed_script", { language, timeout_seconds: 1,
+        code: language === "Python" ? "import time; time.sleep(10)" : "sleep 10" });
+      assert.equal(timedOut.isError, true, `${language} timeouts must reach the caller`);
+    }
+    const bounded = await call("run_sandboxed_script", { language: "Python", code: 'print("x" * 70000)' });
+    assert.equal(bounded.truncated, true);
+    assert.equal(Buffer.byteLength(String(bounded.stdout)), 65536);
     await call("create_example_osm", { name: "bundled-runtime" });
     const saved = await call("save_osm_model", { save_name: "bundle-model" });
     assert.equal(typeof saved.osm_path, "string");

@@ -16,7 +16,9 @@ def execute(executable, arguments):
 
 if command == "openstudio-mcp":
     sys.argv[0] = "openstudio-mcp"
-    from mcp_server.server import main
+    import runpy
+    from mcp_server.server import main, mcp
+    runpy.run_path(str(root / "script-tool.py"))["register_script_tool"](mcp, root)
     main()
 elif command == "python3":
     execute(python, sys.argv[1:])

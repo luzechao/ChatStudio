@@ -46,6 +46,9 @@ rights to those components.
 - Discovery of upstream tools; gbXML-specific tools need external assets.
 - Project workspace/file listing and private, project-specific conversation history.
 - Read-only 3D OSM viewer, EnergyPlus SQL results dashboard, and isolated HTML reports.
+- Approval-gated `run_sandboxed_script` tool for Python and Ruby code in the
+  project sandbox, using included SDK/gems. Scripts may modify project files;
+  output is bounded and exit failures/timeouts are reported explicitly.
 - Project/runtime settings and conversations on disk; optional OS-encrypted API key storage.
 
 Discovery does **not** establish that every tool works. The local bundle verifies
@@ -109,6 +112,16 @@ execution, `-e`, version) to OpenStudio's embedded Ruby. Unsupported flags fail
 explicitly; this is not a general-purpose replacement for a system Ruby/gem
 development environment. The CLI has its own embedded Python environment;
 the separately bundled CPython runs MCP and Python Measure tests.
+
+Ask chat to run Python or Ruby code: the agent discovers
+`run_sandboxed_script`, displays its code in the standard approval dialog, and
+runs it in the already-confined backend process tree. Python supports standard
+libraries and installed packages (including OpenStudio); Ruby uses the embedded
+CLI interpreter. The working directory is the current project. Scripts have a
+1–90 second timeout and return at most 64 KiB each of stdout/stderr with a
+truncation indicator. They cannot read ChatStudio's private state or escape the
+same filesystem/network policy as other native tools. This tool is supplied by
+the bundled backend; external MCP installations may not provide it.
 
 The relocation gate removes Homebrew from PATH, makes native resources read-only,
 checks installed-app discovery and connection, tests Measures, and runs an offline

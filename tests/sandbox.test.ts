@@ -111,7 +111,7 @@ test("internet switch allows and then blocks public outbound connections through
         child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
         child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
         child.on("error", reject);
-        child.on("close", (code) => code === 0 ? resolve(stdout.trim()) : reject(new Error(stderr)));
+        child.on("close", (code, signal) => code === 0 ? resolve(stdout.trim()) : reject(new Error(`Sandbox probe exited ${code} (${signal}): ${stderr || stdout}`)));
       });
       assert.equal(output, internetAccess ? "200" : "403");
       await SandboxManager.reset();

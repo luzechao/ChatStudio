@@ -33,7 +33,10 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
   const resolvedRoots = await Promise.all(config.backend.readRoots.map((p) => realpath(p)));
   const runtimeRoot = path.resolve(path.dirname(fileURLToPath(import.meta.resolve("@carderne/sandbox-runtime"))), "..");
   const seccompRoot = path.join(runtimeRoot, "vendor/seccomp");
-  const readRoots = [...new Set([...config.backend.readRoots, ...resolvedRoots, ...(process.platform === "linux" ? [seccompRoot] : [])])];
+  const helperRoot = process.env.CHATSTUDIO_SANDBOX_HELPERS
+    ? await realpath(process.env.CHATSTUDIO_SANDBOX_HELPERS) : undefined;
+  const readRoots = [...new Set([...config.backend.readRoots, ...resolvedRoots,
+    ...(helperRoot ? [helperRoot] : []), ...(process.platform === "linux" ? [seccompRoot] : [])])];
   if (process.platform === "win32" && [workspace, command, ...readRoots].some((p) => contains(homedir(), p))) {
     throw new Error("The experimental Windows sandbox requires projects and runtime installations outside your user profile. Use C:\\ChatStudio Projects and the machine-wide installer; home-directory protection remains enabled.");
   }
@@ -46,7 +49,6 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
     if (/[*?[\]{}!]/.test(dir)) throw new Error("Sandbox paths must not contain glob metacharacters.");
   }
   if (!SandboxManager.isSupportedPlatform()) throw new Error(`No sandbox backend for ${process.platform}. Execution refused.`);
-  const helperRoot = process.env.CHATSTUDIO_SANDBOX_HELPERS;
   const rg = helperRoot ? path.join(helperRoot, process.platform === "win32" ? "rg.exe" : "rg") : "rg";
   const policy = sandboxPolicy(workspace, [path.dirname(command), ...readRoots], privatePath, config.internetAccess);
   policy.ripgrep = { command: rg };

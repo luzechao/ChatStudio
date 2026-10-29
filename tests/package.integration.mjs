@@ -41,7 +41,7 @@ test("packaged desktop loads its isolated renderer and agent catalog without dev
       await page.getByRole("button", { name: "Configure external runtime", exact: true }).waitFor();
       assert.equal(await page.getByLabel("MCP executable (absolute path)", { exact: true }).isDisabled(), true);
       await page.getByRole("button", { name: "Connect local engine", exact: true }).click();
-      await page.getByText("206 native tools discovered").waitFor();
+      await page.getByText("207 native tools discovered").waitFor();
       await page.evaluate(() => window.chatstudio.disconnect());
     } else assert.equal(config.backend.command, "");
     const appPath = await electron.evaluate(({ app }) => {

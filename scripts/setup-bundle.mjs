@@ -150,6 +150,7 @@ await run(cli, ["--bundle", path.join(bundle, "Gemfile"), "--bundle_path", path.
 await mkdir(path.join(bundle, "bin"), { recursive: true });
 await cp(path.join(scriptDir, "launch.py"), path.join(bundle, "launch.py"));
 await cp(path.join(scriptDir, "ruby-driver.rb"), path.join(bundle, "ruby-driver.rb"));
+await cp(path.join(scriptDir, "script-tool.py"), path.join(bundle, "script-tool.py"));
 if (windows) {
   await run("cl", ["/nologo", "/MT", "/O2", path.join(scriptDir, "windows-launcher.c"),
     `/Fe:${path.join(bundle, "bin/openstudio-mcp.exe")}`, `/Fo:${path.join(downloads, "windows-launcher.obj")}`]);
