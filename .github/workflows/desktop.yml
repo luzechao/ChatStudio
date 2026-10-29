@@ -105,7 +105,7 @@ jobs:
           CHATSTUDIO_EXECUTABLE: release-native/linux-unpacked/chatstudio
           CHATSTUDIO_EXPECT_BUNDLE: "1"
       - name: Verify native execution from packaged resources
-        run: npm run test:bundle
+        run: node scripts/test-native-paths.mjs
         env:
           CHATSTUDIO_BUNDLE: ${{ github.workspace }}/${{ matrix.bundle }}
           CHATSTUDIO_SANDBOX_HELPERS: ${{ github.workspace }}/${{ matrix.bundle }}/sandbox

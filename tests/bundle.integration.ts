@@ -39,7 +39,7 @@ async function run(command: string, args: string[], options: { cwd?: string; env
 
 test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-day workflow under the sandbox", { timeout: 240_000 }, async () => {
   const base = await realpath(await mkdtemp(path.join(process.platform === "win32" ? process.cwd() : tmpdir(), "chatstudio-bundle-")));
-  const workspace = path.join(base, "workspace");
+  const workspace = path.join(base, "workspace with spaces");
   const privateRoot = path.join(base, "private");
   const backend = new OpenStudioBackend(() => {});
   await mkdir(privateRoot);

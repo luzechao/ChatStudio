@@ -460,7 +460,8 @@ The GitHub Actions workflow builds macOS Apple Silicon (DMG and ZIP),
 Windows x64 (NSIS installer), and Linux x64 (AppImage and DEB). Pushes to `main`,
 pull requests, and manual runs execute type checks, unit tests, local provider
 diagnostics, actual confinement probes, native Ruby/Python Measures, an offline
-EnergyPlus simulation, packaging, and packaged-native execution tests.
+EnergyPlus simulation, packaging, and packaged-native execution tests with both
+runtime and project paths containing spaces.
 The disposable Windows runner explicitly provisions the isolated sandbox account
 and WFP filters; end users approve the equivalent setup in Settings.
 
