@@ -3,7 +3,10 @@
   "version": "0.1.1",
   "private": true,
   "description": "A local-first desktop building energy modeling assistant.",
-  "author": "ChatStudio contributors",
+  "author": {
+    "name": "ChatStudio contributors",
+    "email": "7058736+luzechao@users.noreply.github.com"
+  },
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {
