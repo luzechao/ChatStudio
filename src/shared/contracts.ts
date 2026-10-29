@@ -9,6 +9,8 @@ export interface AppConfig {
   workspace: string;
   backend: BackendConfig;
   customEndpoint?: CustomEndpoint;
+  bundledRuntime?: boolean;
+  internetAccess?: boolean;
 }
 
 export interface CustomEndpoint {
@@ -41,8 +43,28 @@ export interface ModelChoice {
   name: string;
 }
 
+export interface CredentialScope { provider: string; baseUrl?: string }
+export interface CredentialState { available: boolean; saved: boolean; apiKey: string | null }
+
+export interface ProjectInfo { path: string; name: string }
+export interface SavedMessage { role: "user" | "assistant"; text: string }
+export interface Conversation {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messages: SavedMessage[];
+}
+export interface ProjectFile { path: string; size: number }
+export interface ProjectState {
+  project: ProjectInfo;
+  conversations: Conversation[];
+  files: ProjectFile[];
+  truncated: boolean;
+}
+
 export type HostRequest =
   | { type: "catalog"; id: string }
+  | { type: "project"; id: string; workspace: string }
   | { type: "connect"; id: string; config: AppConfig }
   | { type: "disconnect"; id: string }
   | { type: "prompt"; id: string; provider: string; model: string; apiKey: string; text: string; baseUrl?: string }
@@ -66,7 +88,17 @@ export type HostMessage =
 export interface ChatStudioAPI {
   loadConfig(): Promise<AppConfig>;
   saveConfig(config: AppConfig): Promise<void>;
+  loadCredential(scope: CredentialScope): Promise<CredentialState>;
+  saveCredential(scope: CredentialScope, apiKey: string): Promise<void>;
+  forgetCredential(scope: CredentialScope): Promise<void>;
+  bundledRuntime(workspace: string): Promise<AppConfig | null>;
   chooseWorkspace(): Promise<string | null>;
+  openProject(workspace: string): Promise<ProjectState>;
+  projectState(): Promise<ProjectState>;
+  recentProjects(): Promise<ProjectInfo[]>;
+  inspectModel(file: string): Promise<ModelGeometry>;
+  inspectResults(file: string): Promise<SimulationResults>;
+  readReport(file: string): Promise<string>;
   catalog(): Promise<ModelChoice[]>;
   connect(config: AppConfig): Promise<void>;
   disconnect(): Promise<void>;
@@ -81,3 +113,4 @@ export interface ChatStudioAPI {
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+import type { ModelGeometry, SimulationResults } from "./inspection.js";

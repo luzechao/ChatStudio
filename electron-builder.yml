@@ -1,11 +1,13 @@
 appId: org.chatstudio.desktop
 productName: ChatStudio
 asar: false
+icon: assets/chatstudio-logo.png
 directories:
   output: release
 files:
   - dist/**/*
   - package.json
+  - assets/chatstudio-logo.png
   - "!node_modules/**/{test,tests,__tests__,example,examples}/**"
 artifactName: ChatStudio-${version}-${os}-${arch}.${ext}
 mac:

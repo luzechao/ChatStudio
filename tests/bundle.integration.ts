@@ -1,0 +1,138 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
+import { bundledConfig } from "../src/main/native-runtime.js";
+import { OpenStudioBackend } from "../src/main/mcp.js";
+import { prepareSandbox } from "../src/main/sandbox.js";
+
+const root = path.resolve(process.env.CHATSTUDIO_BUNDLE || ".runtime/bundle");
+
+function payload(value: unknown): Record<string, unknown> {
+  assert.ok(value && typeof value === "object");
+  assert.ok("content" in value && Array.isArray(value.content));
+  assert.ok(!("isError" in value && value.isError), JSON.stringify(value));
+  const text = value.content.map((item: unknown) => {
+    assert.ok(item && typeof item === "object" && "text" in item);
+    return String(item.text);
+  }).join("\n");
+  const result: unknown = JSON.parse(text);
+  assert.ok(result && typeof result === "object");
+  const record = Object.fromEntries(Object.entries(result));
+  assert.notEqual(record.ok, false, JSON.stringify(record));
+  return record;
+}
+
+async function run(command: string, args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, options);
+    let stdout = ""; let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    child.on("error", reject);
+    child.on("close", (code) => code === 0 ? resolve(stdout) : reject(new Error(`${command} exited ${code}\n${stdout}\n${stderr}`)));
+  });
+}
+
+test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-day workflow under the sandbox", { timeout: 240_000 }, async () => {
+  const base = await realpath(await mkdtemp(path.join(tmpdir(), "chatstudio-bundle-")));
+  const workspace = path.join(base, "workspace");
+  const privateRoot = path.join(base, "private");
+  const backend = new OpenStudioBackend(() => {});
+  await mkdir(privateRoot);
+  try {
+    const config = await bundledConfig(root, workspace);
+    const probe = path.join(workspace, "probe.rb");
+    await writeFile(probe, 'require "openstudio-standards"\nrequire "minitest/autorun"\nputs "BUNDLED_RUBY=#{RUBY_VERSION}"\nputs Standard.build("90.1-2019").class\n');
+    const { warnings: _warnings, ...launch } = await prepareSandbox({
+      ...config, backend: { ...config.backend, command: path.join(root, "bin/ruby"), args: ["-I", ".", probe] },
+    }, privateRoot);
+    const ruby = await run(launch.command, launch.args, launch);
+    assert.match(ruby, /BUNDLED_RUBY=3\.2\.2/);
+    assert.match(ruby, /ASHRAE9012019/);
+    await SandboxManager.reset();
+
+    await backend.connect(config, privateRoot);
+    assert.equal(backend.tools.length, 206);
+    const call = async (name: string, args: Record<string, unknown>) => payload(await backend.call(name, args));
+    await call("create_example_osm", { name: "bundled-runtime" });
+    const saved = await call("save_osm_model", { save_name: "bundle-model" });
+    assert.equal(typeof saved.osm_path, "string");
+    const measure = await call("create_measure", {
+      name: "bundle_rename", description: "Verify bundled Ruby execution", language: "Ruby",
+      run_body: '    model.getBuilding.setName("Bundled Ruby Verified")\n    true',
+    });
+    console.log("Created Measure:", JSON.stringify(measure));
+    const measureDir = measure.measure_dir ?? measure.path;
+    assert.equal(typeof measureDir, "string");
+    const tested = await call("test_measure", { measure_dir: measureDir });
+    assert.ok(typeof tested.passed === "number" && tested.passed > 0, JSON.stringify(tested));
+    assert.equal(tested.failed, 0);
+    assert.equal(tested.errors, 0);
+    await call("apply_measure", { measure_dir: measureDir, arguments: {} });
+    const summary = await call("get_model_summary", {});
+    assert.match(JSON.stringify(summary), /Bundled Ruby Verified/);
+    const pythonMeasure = await call("create_measure", {
+      name: "bundle_python_rename", description: "Verify bundled Python execution", language: "Python",
+      run_body: '        model.getBuilding().setName("Bundled Python Verified")\n        return True',
+    });
+    assert.equal(typeof pythonMeasure.measure_dir, "string");
+    const pythonTests = await call("test_measure", { measure_dir: pythonMeasure.measure_dir });
+    assert.ok(typeof pythonTests.passed === "number" && pythonTests.passed > 0, JSON.stringify(pythonTests));
+    assert.equal(pythonTests.failed, 0);
+    assert.equal(pythonTests.errors, 0);
+    await call("apply_measure", { measure_dir: pythonMeasure.measure_dir, arguments: {} });
+    assert.match(JSON.stringify(await call("get_model_summary", {})), /Bundled Python Verified/);
+    for (const name of ["common", "comstock", "gbxml"]) {
+      const measures = await call("list_local_measures", { root_dir: path.join(root, "measures", name), max_results: 5 });
+      assert.match(JSON.stringify(measures), /measure\.rb|measure_dir/);
+    }
+
+    const fixture = path.join(workspace, "design-day.py");
+    const osm = path.join(workspace, "inputs/design-day.osm");
+    await writeFile(fixture, `
+import openstudio
+m = openstudio.model.exampleModel()
+rc = m.getSimulationControl()
+rc.setRunSimulationforSizingPeriods(True)
+rc.setRunSimulationforWeatherFileRunPeriods(False)
+if not m.getDesignDays():
+    d = openstudio.model.DesignDay(m)
+    d.setName("Summer Design Day")
+    d.setMonth(7)
+    d.setDayOfMonth(21)
+    d.setDayType("SummerDesignDay")
+    d.setMaximumDryBulbTemperature(32.0)
+    d.setHumidityConditionType("Wetbulb")
+    d.setWetbulbOrDewPointAtMaximumDryBulb(23.0)
+m.save(openstudio.path(${JSON.stringify(osm)}), True)
+`);
+    await run(path.join(root, "bin/python3"), [fixture]);
+    const started = await call("run_simulation", { osm_path: osm, name: "bundle-design-day" });
+    console.log("Simulation started:", JSON.stringify(started));
+    const runId = started.run_id;
+    assert.equal(typeof runId, "string");
+    let status: Record<string, unknown> = {};
+    for (let attempt = 0; attempt < 4; attempt++) {
+      status = await call("get_run_status", { run_id: runId, wait_seconds: 50 });
+      const runInfo = status.run;
+      assert.ok(runInfo && typeof runInfo === "object" && "status" in runInfo);
+      if (["success", "failed", "cancelled", "error"].includes(String(runInfo.status))) break;
+    }
+    console.log("Simulation result:", JSON.stringify(status));
+    assert.match(JSON.stringify(status), /"status":"success"/);
+    const artifacts = await call("get_run_artifacts", { run_id: runId });
+    assert.match(JSON.stringify(artifacts), /eplusout\.sql/);
+    const logs = await call("get_run_logs", { run_id: runId, stream: "energyplus", tail: 40 });
+    console.log("EnergyPlus log:", JSON.stringify(logs));
+    assert.match(JSON.stringify(logs), /EnergyPlus Completed Successfully-- \d+ Warning; 0 Severe Errors/i);
+    assert.match(await readFile(path.join(root, "python-requirements.txt"), "utf8"), /openstudio==3.11.0/);
+  } finally {
+    await backend.disconnect();
+    await SandboxManager.reset();
+    await rm(base, { recursive: true, force: true });
+  }
+});

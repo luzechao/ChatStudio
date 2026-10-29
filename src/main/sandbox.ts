@@ -1,13 +1,14 @@
 import { mkdir, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import type { AppConfig } from "../shared/contracts.js";
 import { validateConfig } from "./config.js";
 
-export function sandboxPolicy(workspace: string, readRoots: string[], privateRoot: string): SandboxRuntimeConfig {
+export function sandboxPolicy(workspace: string, readRoots: string[], privateRoot: string, internetAccess = false): SandboxRuntimeConfig {
   return {
-    network: { allowedDomains: [], deniedDomains: [], strictAllowlist: true, allowLocalBinding: false },
+    network: { allowedDomains: [], deniedDomains: [], strictAllowlist: !internetAccess, allowLocalBinding: false },
     filesystem: {
       denyRead: [homedir(), privateRoot].map((p) => ({ path: p, literal: true })),
       allowRead: [workspace, ...readRoots].map((p) => ({ path: p, literal: true })),
@@ -30,7 +31,8 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
   const command = await realpath(config.backend.command);
   if (!(await stat(command)).isFile()) throw new Error("MCP executable is not a regular file.");
   const resolvedRoots = await Promise.all(config.backend.readRoots.map((p) => realpath(p)));
-  const readRoots = [...new Set([...config.backend.readRoots, ...resolvedRoots])];
+  const seccompRoot = path.resolve(path.dirname(fileURLToPath(import.meta.resolve("@anthropic-ai/sandbox-runtime"))), "../vendor/seccomp");
+  const readRoots = [...new Set([...config.backend.readRoots, ...resolvedRoots, ...(process.platform === "linux" ? [seccompRoot] : [])])];
   if ([path.dirname(command), ...readRoots].some((p) => p === homedir() || p === path.parse(p).root
     || contains(p, privatePath) || contains(privatePath, p))) {
     throw new Error("Runtime read paths must not expose home, filesystem root, or ChatStudio private data.");
@@ -39,8 +41,8 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
   if (!SandboxManager.isSupportedPlatform()) throw new Error(`No sandbox backend for ${process.platform}. Execution refused.`);
   const dependencies = await SandboxManager.checkDependenciesAsync();
   if (dependencies.errors.length) throw new Error(`Sandbox unavailable: ${dependencies.errors.join("; ")}`);
-  const policy = sandboxPolicy(workspace, [path.dirname(command), ...readRoots], privatePath);
-  await SandboxManager.initialize(policy, undefined, false);
+  const policy = sandboxPolicy(workspace, [path.dirname(command), ...readRoots], privatePath, config.internetAccess);
+  await SandboxManager.initialize(policy, config.internetAccess ? async () => true : undefined, false);
   const cli = config.backend.environment.OPENSTUDIO_CLI;
   if (cli && !path.isAbsolute(cli)) throw new Error("OPENSTUDIO_CLI must be an absolute executable path.");
   const env: Record<string, string> = {

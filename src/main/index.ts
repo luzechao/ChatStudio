@@ -1,17 +1,30 @@
-import { app, BrowserWindow, dialog, ipcMain, utilityProcess, type UtilityProcess } from "electron";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, utilityProcess, type UtilityProcess } from "electron";
+import { mkdir, open, readFile, realpath, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultConfig, validateConfig } from "./config.js";
-import type { HostRequest, HostMessage } from "../shared/contracts.js";
+import type { AppConfig, HostRequest, HostMessage } from "../shared/contracts.js";
+import type { InspectionKind } from "../shared/inspection.js";
 import { CUSTOM_PROVIDER, validateCustomEndpoint } from "../shared/contracts.js";
+import { bundledConfig } from "./native-runtime.js";
+import { Projects } from "./projects.js";
+import { Credentials } from "./credentials.js";
+import { projectFile } from "./inspection.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 let window: BrowserWindow | undefined;
 let host: UtilityProcess | undefined;
 let quitting = false;
 let privateRoot = "";
+let promptRunning = false;
+let projectChanging = false;
+let viewerRunning = false;
+let viewerHost: UtilityProcess | undefined;
+let viewerTask: Promise<unknown> | undefined;
+let capturedReply = "";
+let capturedError = "";
+let projects: Projects;
 const pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
 
 function agentHost(): UtilityProcess {
@@ -23,6 +36,8 @@ function agentHost(): UtilityProcess {
   host = utilityProcess.fork(path.join(here, "agent-host.js"), [privateRoot], { env, serviceName: "ChatStudio agent", stdio: "pipe" });
   host.on("message", (message: HostMessage) => {
     if (message.type === "event") {
+      if (promptRunning && message.event.type === "text") capturedReply += message.event.text;
+      if (promptRunning && message.event.type === "error") capturedError = message.event.message;
       if (window && !window.isDestroyed()) window.webContents.send("agent:event", message.event);
       return;
     }
@@ -54,6 +69,7 @@ function rpc(request: HostRequest): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pending.delete(request.id);
+      if (request.type === "prompt") process.kill();
       reject(new Error("Agent request timed out. Stop the operation before retrying."));
     }, request.type === "prompt" ? 15 * 60_000 : 60_000);
     pending.set(request.id, { resolve, reject, timer });
@@ -61,10 +77,32 @@ function rpc(request: HostRequest): Promise<unknown> {
   });
 }
 
+async function inspect(config: AppConfig, kind: InspectionKind, file: string): Promise<unknown> {
+  const env: Record<string, string> = {};
+  for (const key of ["PATH", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "SystemRoot", "TEMP", "TMP", "LANG"]) {
+    if (process.env[key]) env[key] = process.env[key];
+  }
+  const child = utilityProcess.fork(path.join(here, "inspection-host.js"), [], { env, serviceName: "ChatStudio viewer", stdio: "pipe" });
+  viewerHost = child;
+  try {
+    viewerTask = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { child.kill(); reject(new Error("Viewer request timed out.")); }, 100_000);
+      child.on("message", (message: { error?: string; value?: unknown }) => {
+        clearTimeout(timer);
+        if (message.error) reject(new Error(message.error)); else resolve(message.value);
+      });
+      child.on("exit", (code) => { clearTimeout(timer); reject(new Error(`Viewer process stopped (${code}).`)); });
+      child.postMessage({ config, privateRoot, kind, file });
+    });
+    return await viewerTask;
+  } finally { child.kill(); viewerHost = undefined; viewerTask = undefined; }
+}
+
 async function createWindow(): Promise<void> {
   window = new BrowserWindow({
     width: 1320, height: 900, minWidth: 980, minHeight: 700, title: "ChatStudio",
     backgroundColor: "#11151c",
+    icon: path.join(app.getAppPath(), "assets/chatstudio-logo.png"),
     webPreferences: { preload: path.join(here, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -93,12 +131,29 @@ if (process.argv.includes("--smoke-test")) {
   privateRoot = path.join(app.getPath("temp"), "chatstudio-smoke");
 }
 await mkdir(privateRoot, { recursive: true, mode: 0o700 });
+projects = new Projects(privateRoot);
+const credentials = new Credentials(privateRoot, safeStorage);
 const configPath = path.join(privateRoot, "config.json");
-const channels: Record<string, (...args: unknown[]) => unknown> = {
-  "config:load": async () => {
-    try { return validateConfig(JSON.parse(await readFile(configPath, "utf8"))); }
+const bundleRoot = path.join(process.resourcesPath, "native");
+let hasBundle = false;
+if (app.isPackaged) {
+  try { await readFile(path.join(bundleRoot, "manifest.json")); hasBundle = true; }
+  catch (error) {
+    if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
+  }
+}
+const loadConfig = async (): Promise<AppConfig> => {
+    try {
+      const saved = validateConfig(JSON.parse(await readFile(configPath, "utf8")));
+      if (saved.bundledRuntime) {
+        if (!hasBundle) throw new Error("Saved configuration requires a bundled native runtime, but this installer has none.");
+        return { ...saved, backend: (await bundledConfig(bundleRoot, saved.workspace)).backend };
+      }
+      return saved;
+    }
     catch (error) {
       if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+        if (hasBundle) return bundledConfig(bundleRoot, path.join(app.getPath("documents"), "ChatStudio Projects", "first-building"));
         try {
           return validateConfig(JSON.parse(await readFile(path.join(app.getAppPath(), ".runtime/backend.json"), "utf8")));
         } catch (runtimeError) {
@@ -108,17 +163,79 @@ const channels: Record<string, (...args: unknown[]) => unknown> = {
       }
       throw error;
     }
+};
+const inspectFile = async (kind: InspectionKind, file: unknown) => {
+  if (viewerRunning || projectChanging || promptRunning) throw new Error("Wait for the current operation before loading a viewer.");
+  if (!projects.workspace || typeof file !== "string") throw new Error("Open a project and choose a file first.");
+  viewerRunning = true;
+  try { return await inspect({ ...await loadConfig(), workspace: projects.workspace }, kind, file); }
+  finally { viewerRunning = false; }
+};
+const channels: Record<string, (...args: unknown[]) => unknown> = {
+  "credential:load": (scope) => credentials.load(scope),
+  "credential:save": (scope, apiKey) => credentials.save(scope, apiKey),
+  "credential:forget": (scope) => credentials.forget(scope),
+  "config:load": loadConfig,
+  "viewer:model": (file) => inspectFile("model", file),
+  "viewer:results": (file) => inspectFile("results", file),
+  "viewer:report": async (file) => {
+    if (!projects.workspace || projectChanging) throw new Error("Open a project first.");
+    const resolved = await projectFile(projects.workspace, file, [".html", ".htm"]);
+    const handle = await open(resolved, "r");
+    try {
+      if ((await handle.stat()).size > 10 * 1024 * 1024) throw new Error("HTML report exceeds the 10 MB viewing limit.");
+      return await handle.readFile("utf8");
+    } finally { await handle.close(); }
   },
   "config:save": async (config) => writeFile(configPath, JSON.stringify(validateConfig(config), null, 2), { mode: 0o600 }),
+  "runtime:bundled": async (workspace) => {
+    if (!hasBundle) return null;
+    if (typeof workspace !== "string") throw new Error("Invalid project folder.");
+    const config = validateConfig({ ...defaultConfig(),
+      workspace: workspace || path.join(app.getPath("documents"), "ChatStudio Projects", "first-building") });
+    return bundledConfig(bundleRoot, config.workspace);
+  },
   "workspace:choose": async () => {
     if (!window) throw new Error("Window unavailable.");
     const result = await dialog.showOpenDialog(window, { title: "Choose a dedicated ChatStudio project folder", properties: ["openDirectory", "createDirectory"] });
     return result.canceled ? null : result.filePaths[0];
   },
+  "project:recent": () => projects.recent(),
+  "project:state": () => projects.state(),
+  "project:open": async (workspace) => {
+    if (promptRunning || projectChanging || viewerRunning) throw new Error("Wait for the current operation before switching projects.");
+    if (typeof workspace !== "string" || !workspace) throw new Error("Choose a project folder.");
+    projectChanging = true;
+    try {
+      return await projects.load(workspace, async (project) => {
+        await rpc({ type: "project", id: randomUUID(), workspace: project.path });
+      });
+    } finally { projectChanging = false; }
+  },
   "agent:catalog": () => rpc({ type: "catalog", id: randomUUID() }),
-  "agent:connect": (config) => rpc({ type: "connect", id: randomUUID(), config: validateConfig(config, true) }),
-  "agent:disconnect": () => rpc({ type: "disconnect", id: randomUUID() }),
-  "agent:reset": () => rpc({ type: "reset", id: randomUUID() }),
+  "agent:connect": async (config) => {
+    if (promptRunning || projectChanging) throw new Error("Wait for the current operation before connecting.");
+    projectChanging = true;
+    try {
+      const validated = validateConfig(config, true);
+      if (projects.workspace && projects.workspace !== await realpath(validated.workspace)) throw new Error("Open this project before connecting its local engine.");
+      return await rpc({ type: "connect", id: randomUUID(), config: validated });
+    } finally { projectChanging = false; }
+  },
+  "agent:disconnect": async () => {
+    if (promptRunning || projectChanging) throw new Error("Wait for the current operation before disconnecting.");
+    projectChanging = true;
+    try { return await rpc({ type: "disconnect", id: randomUUID() }); }
+    finally { projectChanging = false; }
+  },
+  "agent:reset": async () => {
+    if (promptRunning || projectChanging) throw new Error("Wait for the current operation before starting a new conversation.");
+    projectChanging = true;
+    try {
+      await rpc({ type: "reset", id: randomUUID() });
+      projects.newConversation();
+    } finally { projectChanging = false; }
+  },
   "agent:abort": () => rpc({ type: "abort", id: randomUUID() }),
   "agent:approve": (id, allowed, session) => {
     if (typeof id !== "string" || typeof allowed !== "boolean" || typeof session !== "boolean") throw new Error("Invalid approval.");
@@ -128,14 +245,32 @@ const channels: Record<string, (...args: unknown[]) => unknown> = {
     if (typeof name !== "string" || !name || name.length > 150) throw new Error("Invalid tool name.");
     return rpc({ type: "revoke", id: randomUUID(), name });
   },
-  "agent:prompt": (input) => {
+  "agent:prompt": async (input) => {
+    if (promptRunning || projectChanging || viewerRunning) throw new Error("Wait for the current operation to finish.");
     if (!input || typeof input !== "object") throw new Error("Invalid message.");
     if (!("provider" in input && typeof input.provider === "string" && "model" in input && typeof input.model === "string"
       && "apiKey" in input && typeof input.apiKey === "string" && "text" in input && typeof input.text === "string")) throw new Error("Invalid message fields.");
     const endpoint = input.provider === CUSTOM_PROVIDER
       ? validateCustomEndpoint({ baseUrl: "baseUrl" in input ? input.baseUrl : undefined, model: input.model }) : undefined;
-    return rpc({ type: "prompt", id: randomUUID(), provider: input.provider, model: endpoint?.model ?? input.model,
-      apiKey: input.apiKey, text: input.text, ...(endpoint ? { baseUrl: endpoint.baseUrl } : {}) });
+    if (!input.apiKey.trim()) throw new Error("Enter a provider API key in Settings.");
+    promptRunning = true; capturedReply = ""; capturedError = "";
+    const key = input.apiKey;
+    const redact = (text: string) => text.replaceAll(key, "[redacted]");
+    let userSaved = false;
+    try {
+      await projects.append({ role: "user", text: redact(input.text) });
+      userSaved = true;
+      await rpc({ type: "prompt", id: randomUUID(), provider: input.provider, model: endpoint?.model ?? input.model,
+        apiKey: input.apiKey, text: input.text, ...(endpoint ? { baseUrl: endpoint.baseUrl } : {}) });
+    } catch (error) {
+      capturedError = redact(error instanceof Error ? error.message : String(error));
+      throw new Error(capturedError);
+    } finally {
+      try {
+        const text = capturedReply + (capturedError ? `\n\nRequest error: ${capturedError}` : "");
+        if (userSaved && text) await projects.append({ role: "assistant", text: redact(text) });
+      } finally { promptRunning = false; capturedReply = ""; capturedError = ""; }
+    }
   },
 };
 for (const [channel, handler] of Object.entries(channels)) {
@@ -147,11 +282,12 @@ for (const [channel, handler] of Object.entries(channels)) {
   });
 }
 app.on("before-quit", (event) => {
-  if (!host || quitting) return;
+  if ((!host && !viewerHost) || quitting) return;
   event.preventDefault();
   quitting = true;
-  const timeout = setTimeout(() => { host?.kill(); app.quit(); }, 5000);
-  void rpc({ type: "disconnect", id: randomUUID() }).catch((error: unknown) => {
+  viewerHost?.postMessage({ type: "cancel" });
+  const timeout = setTimeout(() => { host?.kill(); viewerHost?.kill(); app.quit(); }, 5000);
+  void Promise.all([host ? rpc({ type: "disconnect", id: randomUUID() }) : undefined, viewerTask]).catch((error: unknown) => {
     console.error("Backend shutdown failed:", error instanceof Error ? error.message : String(error));
   }).finally(() => { clearTimeout(timeout); host?.kill(); app.quit(); });
 });

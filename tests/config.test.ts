@@ -45,3 +45,16 @@ test("sandbox policy denies network, home reads, private state and writes outsid
     { path: homedir(), literal: true }, { path: "/private-state", literal: true },
   ]);
 });
+
+test("internet access is opt-in, validated, persisted and only changes network policy", () => {
+  const config = defaultConfig();
+  assert.equal(validateConfig(config).internetAccess, undefined);
+  assert.equal(validateConfig({ ...config, internetAccess: true }).internetAccess, true);
+  assert.equal(validateConfig({ ...config, internetAccess: false }).internetAccess, false);
+  assert.throws(() => validateConfig({ ...config, internetAccess: "true" }), /internet access/);
+  const offline = sandboxPolicy("/project", ["/runtime"], "/private-state");
+  const online = sandboxPolicy("/project", ["/runtime"], "/private-state", true);
+  assert.equal(online.network.strictAllowlist, false);
+  assert.deepEqual(online.filesystem, offline.filesystem);
+  assert.equal(online.network.allowLocalBinding, false);
+});

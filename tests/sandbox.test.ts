@@ -46,6 +46,7 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
         socket.on('error',()=>resolve(true));
         socket.setTimeout(1500,()=>{socket.destroy();resolve(false)});
       });
+
       console.log(JSON.stringify(out));
     `);
     const { warnings: _warnings, ...launch } = await prepareSandbox({
@@ -70,4 +71,44 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
     await SandboxManager.reset();
     await rm(base, { recursive: true, force: true });
   }
+});
+
+test("internet switch allows and then blocks public outbound connections through the sandbox proxy", {
+  skip: process.platform !== "darwin" && process.platform !== "linux", timeout: 45_000,
+}, async () => {
+  const base = await mkdtemp(path.join(homedir(), ".chatstudio-network-test-"));
+  const workspace = path.join(base, "workspace"), privateRoot = path.join(base, "private");
+  try {
+    await mkdir(workspace); await mkdir(privateRoot);
+    const script = path.join(workspace, "network.mjs");
+    await writeFile(script, `
+      import http from "node:http";
+      const proxy = new URL(process.env.HTTP_PROXY || process.env.http_proxy);
+      const request = http.request({
+        host: proxy.hostname, port: proxy.port, method: "CONNECT", path: "example.com:443",
+        headers: { Host: "example.com:443", ...(proxy.username ? {
+          "Proxy-Authorization": "Basic " + Buffer.from(decodeURIComponent(proxy.username) + ":" + decodeURIComponent(proxy.password)).toString("base64")
+        } : {}) }
+      });
+      request.on("connect", (response, socket) => { console.log(response.statusCode); socket.destroy(); });
+      request.on("error", (error) => { console.error(error.message); process.exitCode = 1; });
+      request.setTimeout(10000, () => request.destroy(new Error("Proxy connection timed out")));
+      request.end();
+    `);
+    for (const internetAccess of [false, true, false]) {
+      const { warnings: _warnings, ...launch } = await prepareSandbox({
+        workspace, internetAccess, backend: { command: process.execPath, args: [script], readRoots: [], environment: {} },
+      }, privateRoot);
+      const output = await new Promise<string>((resolve, reject) => {
+        const child = spawn(launch.command, launch.args, launch);
+        let stdout = "", stderr = "";
+        child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+        child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+        child.on("error", reject);
+        child.on("close", (code) => code === 0 ? resolve(stdout.trim()) : reject(new Error(stderr)));
+      });
+      assert.equal(output, internetAccess ? "200" : "403");
+      await SandboxManager.reset();
+    }
+  } finally { await SandboxManager.reset(); await rm(base, { recursive: true, force: true }); }
 });

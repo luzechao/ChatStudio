@@ -46,6 +46,10 @@ export function validateConfig(value: unknown, requireRuntime = false): AppConfi
   if (requireRuntime && (!workspace || !command)) throw new Error("Select a workspace and configure a native MCP executable first.");
   const customEndpoint = "customEndpoint" in value && value.customEndpoint !== undefined
     ? validateCustomEndpoint(value.customEndpoint) : undefined;
+  if ("bundledRuntime" in value && typeof value.bundledRuntime !== "boolean") throw new Error("Invalid bundled runtime setting.");
+  if ("internetAccess" in value && typeof value.internetAccess !== "boolean") throw new Error("Invalid internet access setting.");
   return { workspace, backend: { command, args, readRoots, environment: env },
-    ...(customEndpoint ? { customEndpoint } : {}) };
+    ...(customEndpoint ? { customEndpoint } : {}),
+    ...("bundledRuntime" in value ? { bundledRuntime: value.bundledRuntime === true } : {}),
+    ...("internetAccess" in value ? { internetAccess: value.internetAccess === true } : {}) };
 }

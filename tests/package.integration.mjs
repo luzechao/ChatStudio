@@ -9,6 +9,7 @@ test("packaged desktop loads its isolated renderer and agent catalog without dev
   const executablePath = process.env.CHATSTUDIO_EXECUTABLE;
   assert.ok(executablePath, "Set CHATSTUDIO_EXECUTABLE to the packaged executable.");
   const userData = await mkdtemp(path.join(tmpdir(), "chatstudio-package-"));
+  const workspace = await mkdtemp(path.join(tmpdir(), "chatstudio-package-project-"));
   let electron;
   try {
     electron = await _electron.launch({ executablePath: path.resolve(executablePath), args: [`--user-data-dir=${userData}`] });
@@ -18,8 +19,31 @@ test("packaged desktop loads its isolated renderer and agent catalog without dev
     await page.getByRole("heading", { name: "Set up your workspace" }).waitFor();
     await page.waitForFunction(() => document.querySelectorAll("select option").length > 20);
     assert.equal(await page.evaluate(() => typeof window.require), "undefined");
+    assert.equal(await page.getByRole("img", { name: "ChatStudio logo", exact: true })
+      .evaluate((image) => image.complete && image.naturalWidth > 0), true);
     const config = await page.evaluate(() => window.chatstudio.loadConfig());
-    assert.equal(config.backend.command, "");
+    if (process.env.CHATSTUDIO_EXPECT_BUNDLE === "1") {
+      assert.equal(config.bundledRuntime, true);
+      assert.ok(config.backend.command.includes(`${path.sep}native${path.sep}bin${path.sep}`));
+      await page.evaluate(async (input) => {
+        const config = await window.chatstudio.loadConfig();
+        await window.chatstudio.saveConfig({ ...config, workspace: input,
+          backend: { ...config.backend, command: "/old-install/native/bin/openstudio-mcp" } });
+      }, workspace);
+      const restored = await page.evaluate(() => window.chatstudio.loadConfig());
+      assert.equal(restored.backend.command, config.backend.command);
+      assert.equal(restored.workspace, workspace);
+      await page.reload();
+      await page.getByRole("button", { name: "Configure external runtime", exact: true }).click();
+      await page.getByRole("button", { name: "Use included native runtime", exact: true }).waitFor();
+      assert.equal(await page.getByLabel("MCP executable (absolute path)", { exact: true }).isEnabled(), true);
+      await page.getByRole("button", { name: "Use included native runtime", exact: true }).click();
+      await page.getByRole("button", { name: "Configure external runtime", exact: true }).waitFor();
+      assert.equal(await page.getByLabel("MCP executable (absolute path)", { exact: true }).isDisabled(), true);
+      await page.getByRole("button", { name: "Connect local engine", exact: true }).click();
+      await page.getByText("206 native tools discovered").waitFor();
+      await page.evaluate(() => window.chatstudio.disconnect());
+    } else assert.equal(config.backend.command, "");
     const appPath = await electron.evaluate(({ app }) => {
       if (!app.isPackaged) throw new Error("Expected packaged application.");
       return app.getAppPath();
@@ -31,5 +55,6 @@ test("packaged desktop loads its isolated renderer and agent catalog without dev
   } finally {
     await electron?.close();
     await rm(userData, { recursive: true, force: true });
+    await rm(workspace, { recursive: true, force: true });
   }
 });

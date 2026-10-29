@@ -1,0 +1,12 @@
+extends: ./electron-builder.yml
+directories:
+  output: release-native
+artifactName: ChatStudio-${version}-native-${os}-${arch}.${ext}
+extraResources:
+  - from: .runtime/bundle
+    to: native
+    filter:
+      - "**/*"
+      - "!python/**/*"
+      - "!**/__pycache__/**/*"
+      - "!**/*.pyc"

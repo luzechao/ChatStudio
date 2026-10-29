@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title description">
+  <title id="title">ChatStudio logo</title>
+  <desc id="description">A bold white C on a dark blue background of overlapping roof shingles.</desc>
+  <defs>
+    <linearGradient id="navy" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#173d61"/>
+      <stop offset="1" stop-color="#071a33"/>
+    </linearGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#426c94"/>
+      <stop offset="1" stop-color="#153653"/>
+    </linearGradient>
+    <pattern id="shingles" width="256" height="224" patternUnits="userSpaceOnUse">
+      <g fill="url(#tile)" stroke="#06152b" stroke-width="7">
+        <path d="M-128-112H128V16Q0 112-128 16Z"/>
+        <path d="M128-112H384V16Q256 112 128 16Z"/>
+        <path d="M0 0H256V128Q128 224 0 128Z"/>
+        <path d="M-128 112H128V240Q0 336-128 240Z"/>
+        <path d="M128 112H384V240Q256 336 128 240Z"/>
+      </g>
+      <g fill="none" stroke="#82a8ca" stroke-width="5" opacity=".85">
+        <path d="M-125 15Q0 107 125 15M131 15Q256 107 381 15"/>
+        <path d="M3 127Q128 219 253 127"/>
+      </g>
+    </pattern>
+    <radialGradient id="shade" cx=".35" cy=".2" r=".95">
+      <stop stop-color="#214f77" stop-opacity="0"/>
+      <stop offset="1" stop-color="#020e23" stop-opacity=".35"/>
+    </radialGradient>
+    <clipPath id="icon"><rect width="1024" height="1024" rx="208"/></clipPath>
+    <filter id="shadow" x="-.3" y="-.3" width="1.6" height="1.7" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="13" flood-color="#020c1d" flood-opacity=".5"/>
+    </filter>
+  </defs>
+  <g clip-path="url(#icon)">
+    <rect width="1024" height="1024" fill="url(#navy)"/>
+    <rect width="1024" height="1024" fill="url(#shingles)" opacity="1"/>
+    <rect width="1024" height="1024" fill="url(#shade)"/>
+    <rect x="3" y="3" width="1018" height="1018" rx="205" fill="none" stroke="#7895af" stroke-opacity=".22" stroke-width="6"/>
+  </g>
+  <path d="M704 324A274 274 0 1 0 704 700" fill="none" stroke="#fff" stroke-width="112" stroke-linecap="square" filter="url(#shadow)"/>
+</svg>

@@ -25,6 +25,12 @@ port.on("message", async ({ data }: { data: HostRequest }) => {
     }
     let value: unknown;
     switch (data.type) {
+      case "project":
+        if (connecting || agent.isBusy) throw new Error("Wait for the current operation to finish.");
+        connecting = true;
+        try { await agent.reset(); await backend.disconnect(); workspace = data.workspace; }
+        finally { connecting = false; }
+        break;
       case "catalog": value = await agent.catalog(); break;
       case "connect":
         if (connecting || agent.isBusy) throw new Error("Wait for the current operation to finish.");

@@ -45,7 +45,7 @@ export class OpenStudioBackend {
       }
       this.emit({
         type: "backend", connected: true, tools: this.tools.length,
-        message: `Sandboxed backend connected. Network denied. ${warnings.join(" ")}`.trim(),
+        message: `Sandboxed backend connected. Internet access ${config.internetAccess ? "enabled" : "disabled"}. ${warnings.join(" ")}`.trim(),
       });
     } catch (error) {
       await this.disconnect();
