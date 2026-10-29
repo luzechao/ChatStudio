@@ -59,14 +59,47 @@ export async function patchWindowsMeasureSyntax(sitePackages) {
       '[os.environ["OPENSTUDIO_CLI"], str(Path(os.environ["OPENSTUDIO_CLI"]).parents[2] / "ruby-driver.rb"), "-c", str(script_path)],'],
     ['["python3", "-c", f"compile({code!r}, {str(script_path)!r}, \'exec\')"],',
       '[sys.executable, "-I", "-c", f"compile({code!r}, {str(script_path)!r}, \'exec\')"],'],
-    ["capture_output=True, text=True, timeout=10, check=False,",
-      "stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=10, check=False,"],
   ];
   for (const [before, after] of replacements) {
     if (source.includes(after)) continue;
-    const expected = before.startsWith("capture_output") ? 2 : 1;
-    if (source.split(before).length !== expected + 1) throw new Error(`Unexpected pinned MCP Measure syntax source: ${before}`);
+    if (source.split(before).length !== 2) throw new Error(`Unexpected pinned MCP Measure syntax source: ${before}`);
     source = source.replaceAll(before, after);
+  }
+  await writeFile(file, source);
+}
+
+export async function patchWindowsMcpChildren(sitePackages) {
+  const directory = path.join(sitePackages, "mcp_server");
+  const subprocessSites = [
+    ["skills/measure_authoring/operations.py", "run", 5],
+    ["skills/measures/operations.py", "run", 1],
+    ["skills/simulation/operations.py", "Popen", 1],
+    ["skills/gbxml_import/operations.py", "run", 1],
+    ["skills/python_ems/actuators.py", "run", 1],
+    ["skills/python_ems/packages.py", "run", 2],
+    ["skills/server_info/operations.py", "check_output", 1],
+  ];
+  for (const [name, method, count] of subprocessSites) {
+    const file = path.join(directory, name);
+    let source = (await readFile(file, "utf8")).replaceAll("\r\n", "\n");
+    const before = `subprocess.${method}(`;
+    const after = `${before}stdin=subprocess.DEVNULL, args=`;
+    if (source.split(after).length === count + 1) continue;
+    if (source.split(before).length !== count + 1) throw new Error(`Unexpected pinned MCP subprocess source: ${name}`);
+    source = source.replaceAll(before, after);
+    await writeFile(file, source);
+  }
+  const file = path.join(directory, "sandbox.py");
+  let source = (await readFile(file, "utf8")).replaceAll("\r\n", "\n");
+  const replacements = [
+    ['"PATH", "HOME", "USER",', '"SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATH", "HOME", "USER",'],
+    ['            env["TMPDIR"] = str(tmp)',
+      '            env["TMPDIR"] = str(tmp)\n            if os.name == "nt":\n                env["TEMP"] = env["TMP"] = str(tmp)'],
+  ];
+  for (const [before, after] of replacements) {
+    if (source.includes(after)) continue;
+    if (source.split(before).length !== 2) throw new Error("Unexpected pinned MCP Windows environment source");
+    source = source.replace(before, after);
   }
   await writeFile(file, source);
 }

@@ -3,9 +3,9 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { patchWindowsEventLoop, patchWindowsMeasureSyntax } from "../scripts/native/patch-windows-stdio.mjs";
+import { patchWindowsEventLoop, patchWindowsMcpChildren, patchWindowsMeasureSyntax } from "../scripts/native/patch-windows-stdio.mjs";
 
-test("Windows Measure syntax checks launch direct interpreters with closed stdin and bounded timeouts", async () => {
+test("Windows Measure syntax checks launch direct interpreters with bounded timeouts", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "chatstudio-syntax-patch-"));
   const file = path.join(directory, "mcp_server/skills/measure_authoring/operations.py");
   try {
@@ -25,7 +25,6 @@ proc = subprocess.run(
     assert.match(patched, /os\.environ\["OPENSTUDIO_CLI"\]/);
     assert.match(patched, /parents\[2\] \/ "ruby-driver.rb"/);
     assert.match(patched, /sys\.executable, "-I", "-c"/);
-    assert.equal(patched.split("stdin=subprocess.DEVNULL").length, 3);
     assert.equal(patched.split("timeout=10").length, 3);
     assert.doesNotMatch(patched, /\["ruby"|\["python3"/);
     await patchWindowsMeasureSyntax(directory);
@@ -38,6 +37,39 @@ proc = subprocess.run(
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("Windows native children close protocol stdin and preserve only required Windows environment", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "chatstudio-child-patch-"));
+  const sites = [
+    ["measure_authoring", "run", 5], ["measures", "run", 1], ["simulation", "Popen", 1],
+    ["gbxml_import", "run", 1], ["python_ems/actuators", "run", 1],
+    ["python_ems/packages", "run", 2], ["server_info", "check_output", 1],
+  ];
+  try {
+    for (const [name, method, count] of sites) {
+      const relative = name.startsWith("python_ems") ? `${name}.py` : `${name}/operations.py`;
+      const file = path.join(directory, "mcp_server/skills", relative);
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(file, `subprocess.${method}(["command"], timeout=10)\r\n`.repeat(count));
+    }
+    const envFile = path.join(directory, "mcp_server/sandbox.py");
+    await writeFile(envFile, '"PATH", "HOME", "USER",\n            env["TMPDIR"] = str(tmp)');
+    await patchWindowsMcpChildren(directory);
+    for (const [name, method, count] of sites) {
+      const relative = name.startsWith("python_ems") ? `${name}.py` : `${name}/operations.py`;
+      const source = await readFile(path.join(directory, "mcp_server/skills", relative), "utf8");
+      assert.equal(source.split(`subprocess.${method}(stdin=subprocess.DEVNULL, args=`).length, count + 1);
+    }
+    const environment = await readFile(envFile, "utf8");
+    assert.match(environment, /"SYSTEMROOT", "WINDIR", "TEMP", "TMP"/);
+    assert.match(environment, /env\["TEMP"\] = env\["TMP"\] = str\(tmp\)/);
+    assert.doesNotMatch(environment, /USERPROFILE|APPDATA/);
+    await patchWindowsMcpChildren(directory);
+    assert.equal(await readFile(envFile, "utf8"), environment);
+    await writeFile(envFile, "unexpected");
+    await assert.rejects(patchWindowsMcpChildren(directory), /Unexpected pinned MCP Windows environment source/);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test("Windows event-loop patch uses named pipes and checks pinned CPython source", async () => {

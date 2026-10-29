@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -22,7 +22,6 @@ function payload(value: unknown): Record<string, unknown> {
   const result: unknown = JSON.parse(text);
   assert.ok(result && typeof result === "object");
   const record = Object.fromEntries(Object.entries(result));
-  assert.notEqual(record.ok, false, JSON.stringify(record));
   return record;
 }
 
@@ -92,11 +91,28 @@ test("self-contained bundle runs Ruby/Python Measures and an EnergyPlus design-d
     assert.equal(backend.tools.length, 207);
     const call = async (name: string, args: Record<string, unknown>) => {
       console.log(`Calling ${name}${typeof args.language === "string" ? ` (${args.language})` : ""}`);
-      return payload(await backend.call(name, args));
+      const result = payload(await backend.call(name, args));
+      if (result.ok === false && typeof result.log_path === "string") {
+        const log = await open(result.log_path);
+        try {
+          const { size } = await log.stat();
+          const buffer = Buffer.alloc(Math.min(size, 8000));
+          await log.read(buffer, 0, buffer.length, Math.max(0, size - buffer.length));
+          console.error("Native tool log:", buffer.toString("utf8"));
+        } finally { await log.close(); }
+      }
+      assert.notEqual(result.ok, false, JSON.stringify(result));
+      return result;
     };
     if (process.platform === "win32") {
       const syntax = await call("run_sandboxed_script", { language: "Python", code: [
         "import pathlib, shutil, subprocess, time",
+        "from mcp_server import sandbox",
+        "import os",
+        'child_env = sandbox.build_env(pathlib.Path.cwd())',
+        'assert child_env["SYSTEMROOT"] == os.environ["SYSTEMROOT"]',
+        'assert pathlib.Path(child_env["TEMP"]).is_relative_to(pathlib.Path.cwd())',
+        'assert "USERPROFILE" not in child_env and "APPDATA" not in child_env',
         'ruby = shutil.which("ruby")',
         'print("RUBY_EXECUTABLE=" + str(ruby), flush=True)',
         `assert pathlib.Path(ruby).resolve() == pathlib.Path(${JSON.stringify(path.join(root, "bin/ruby.exe"))}).resolve()`,

@@ -106,6 +106,10 @@ command paths take precedence over other executables. Windows Measure syntax
 checks launch the bundled CLI/Python without those wrappers and close stdin:
 these noninteractive checks retain their ten-second timeout without leaving an
 interpreter descendant holding the captured output pipes open after a timeout.
+Other Windows native child commands also receive closed stdin rather than the
+MCP protocol stream. Their clean environment preserves `SYSTEMROOT`/`WINDIR`
+for Windows DLL loading and redirects `TEMP`/`TMP` to the project, without
+passing through user-profile paths or credentials.
 Linux
 builds need Bubblewrap, socat, patchelf and enabled Ubuntu deb-src repositories;
 CI bundles their required files and source rather than requiring users to install
