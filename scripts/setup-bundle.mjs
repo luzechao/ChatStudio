@@ -101,6 +101,7 @@ archives.push(await archive(`openstudio-3.11.0-${platform}.tar.gz`,
 archives.push(await archive(`python-3.13.18-${platform}.tar.gz`,
   `https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.13.18%2B20261026-${target.python}-install_only_stripped.tar.gz`,
   target.pythonHash, path.join(bundle, "python-runtime")));
+await rm(path.join(bundle, "openstudio/Radiance"), { recursive: true, force: true });
 
 const mcpRevision = "e0a47a9c50aa6c52f77ba63540118bb816d12726";
 const mcp = await checkout("mcp", "NatLabRockies/openstudio-mcp", mcpRevision);

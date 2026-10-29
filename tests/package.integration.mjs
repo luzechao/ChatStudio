@@ -9,7 +9,7 @@ test("packaged desktop loads its isolated renderer and agent catalog without dev
   const executablePath = process.env.CHATSTUDIO_EXECUTABLE;
   assert.ok(executablePath, "Set CHATSTUDIO_EXECUTABLE to the packaged executable.");
   const userData = await mkdtemp(path.join(tmpdir(), "chatstudio-package-"));
-  const workspace = await mkdtemp(path.join(tmpdir(), "chatstudio-package-project-"));
+  const workspace = await mkdtemp(path.join(process.platform === "win32" ? process.cwd() : tmpdir(), "chatstudio-package-project-"));
   let electron;
   try {
     electron = await _electron.launch({ executablePath: path.resolve(executablePath), args: [`--user-data-dir=${userData}`] });

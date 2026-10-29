@@ -4,11 +4,20 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import { _electron } from "playwright";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const scope = { provider: "chatstudio-custom", baseUrl: "https://company.example/v1" };
 const key = "synthetic-encrypted-integration-key";
+
+async function assertForgotten(directory) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if ((await readdir(directory)).length === 0) return;
+    await delay(50);
+  }
+  assert.deepEqual(await readdir(directory), []);
+}
 
 test("Electron secure key storage is opt-in, encrypted on disk, restored and forgotten", { timeout: 90_000 }, async () => {
   const userData = await mkdtemp(path.join(tmpdir(), "chatstudio-secure-key-"));
@@ -66,7 +75,7 @@ test("Electron secure key storage is opt-in, encrypted on disk, restored and for
     assert.equal(await page.getByLabel("Remember API key on this device", { exact: true }).isChecked(), true);
     await page.getByLabel("Remember API key on this device", { exact: true }).click();
     await page.getByText("Optional: save with OS encryption.", { exact: false }).waitFor();
-    assert.deepEqual(await readdir(directory), []);
+    await assertForgotten(directory);
     assert.equal(await page.getByLabel("API key", { exact: true }).inputValue(), `${key}-updated`, "Forget keeps the current session usable");
     await electron.close();
     electron = await launch();
@@ -82,7 +91,7 @@ test("Electron secure key storage is opt-in, encrypted on disk, restored and for
     await page.getByRole("alert").filter({ hasText: "Could not decrypt" }).waitFor();
     await page.getByRole("button", { name: "Forget saved key", exact: true }).click();
     await page.getByText("Optional: save with OS encryption.", { exact: false }).waitFor();
-    assert.deepEqual(await readdir(directory), []);
+    await assertForgotten(directory);
     await page.getByLabel("API key", { exact: true }).fill(key);
     assert.equal(await page.getByLabel("Remember API key on this device", { exact: true }).isEnabled(), true);
   } finally {

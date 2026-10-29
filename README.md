@@ -12,6 +12,7 @@ SDK/CLI, EnergyPlus, Python, Ruby/gems, Common/ComStock Measures and ripgrep.
 gbXML assets are omitted. Windows sandbox support is experimental and requires
 one-time administrator/UAC-approved setup in Settings. Linux requires enabled
 unprivileged user namespaces; no Docker is used.
+The optional Radiance toolchain is not included.
 
 See [GitHub Releases](https://github.com/luzechao/ChatStudio/releases) for
 downloads and each version's limitations. Older v0.1.1 downloads are desktop-only.
@@ -96,7 +97,8 @@ Downloads and sources are cached locally. This is separate from `setup:native`,
 which remains the smaller external-runtime development setup.
 
 First launch uses the included runtime automatically and creates a project under
-`Documents/ChatStudio Projects/first-building`. Choose your own project folder
+`Documents/ChatStudio Projects/first-building` on macOS/Linux, or
+`C:\ChatStudio Projects\first-building` on Windows. Choose your own project folder
 if desired, then **Connect local engine**. Existing external-runtime
 configurations are preserved: disconnect first and choose **Use included native
 runtime** in Settings. Saved bundled paths are rebuilt after the app moves.
@@ -361,6 +363,10 @@ not the MCP server's current building model. All sessions are ephemeral in this 
   **Set up Windows sandbox** in Settings once (UAC approval). Installation
   changes machine account/network configuration and is never performed silently.
   Backend connection verifies confinement; failure refuses execution.
+  Windows uses a machine-wide installer (administrator approval). Projects and
+  runtime files must stay outside the signed-in user's profile: Ruby's path
+  canonicalization cannot traverse profile ancestors denied by the alpha
+  sandbox. Unsupported paths are rejected rather than weakening home protection.
   Native viewers disconnect the backend before inspection to avoid overlapping
   account-wide sandbox permissions; reconnect afterward. Windows support is alpha.
 
@@ -372,7 +378,7 @@ code and has no hard CPU/memory quota implementation.
 
 The Python SDK is **3.11.0**, matching the upstream MCP package.
 
-For desktop-only CI previews, install a matching native OpenStudio distribution
+For older desktop-only previews or a custom external runtime, install a matching native OpenStudio distribution
 with its CLI, Ruby bindings/runtime, and matching EnergyPlus. In runtime settings:
 
 - Set `OPENSTUDIO_CLI` to the absolute CLI executable. ChatStudio adds its directory
@@ -383,8 +389,7 @@ with its CLI, Ruby bindings/runtime, and matching EnergyPlus. In runtime setting
   `GBXML_MEASURES_DIR`, and `GBXML_SEED_OSM` as needed.
 
 The upstream Docker recipe documents the expected asset versions, but ChatStudio
-does not require or run Docker. Cross-platform native packaging, complete notice
-review, signing, and full tool coverage remain work.
+does not require or run Docker. Signing and full tool coverage remain work.
 
 ## Validation
 
@@ -431,20 +436,20 @@ request/streaming behavior; it does not verify a specific remote provider or key
 
 ## Next milestones
 
-1. Extend the locally verified macOS native bundle to CI and other platforms.
-2. Add verified simulation/cancellation/reporting workflows and capability indicators.
-3. Extend model/results viewing with time-series plots and model revision checkpoints.
-4. Add resumable conversations.
-5. Validate Linux/Windows confinement and ship signed platform-specific installers.
+1. Broaden simulation/cancellation/reporting coverage and capability indicators.
+2. Extend model/results viewing with time-series plots and model revision checkpoints.
+3. Add resumable conversations.
+4. Harden the experimental Windows sandbox integration and ship signed installers.
 
 ## Desktop builds and GitHub releases
 
 The GitHub Actions workflow builds macOS Apple Silicon (DMG and ZIP),
 Windows x64 (NSIS installer), and Linux x64 (AppImage and DEB). Pushes to `main`,
 pull requests, and manual runs execute type checks, unit tests, local provider
-diagnostics, packaging, and a packaged-app smoke test. Linux confinement tests
-run on the disposable runner with bubblewrap prerequisites installed; Windows
-confinement is not implemented and is never bypassed.
+diagnostics, actual confinement probes, native Ruby/Python Measures, an offline
+EnergyPlus simulation, packaging, and packaged-native execution tests.
+The disposable Windows runner explicitly provisions the isolated sandbox account
+and WFP filters; end users approve the equivalent setup in Settings.
 
 Build artifacts are retained for 14 days. To create a release, update the package
 version and lockfile, commit, and push a matching `v<version>` tag. After every
@@ -452,25 +457,23 @@ platform passes, the workflow creates a **draft prerelease** with installers and
 SHA-256 checksums. Review and test it before publishing. The workflow token only
 has repository-write access in the release job.
 
-The current CI artifacts are **unsigned desktop previews**, not native bundles.
-The installed app contains neither development projects nor `.runtime`, keys,
-or a relocatable Python/OpenStudio distribution. macOS/Linux users must configure
-an external native runtime. Windows supports AI chat/settings but refuses native
-modeling until its sandbox launch adapter is validated. Signing/notarization,
-runtime bundling, Ruby gem/Measure assets, licensing review, and full native
-workflow verification remain release blockers for production distributions.
-The separate local `package:native` build described above does include runtimes;
-it has deliberately not been wired into CI yet.
+Current CI artifacts are **unsigned self-contained native previews**. Native
+runtimes and sandbox helpers are installed under the app's `resources/native`,
+separate from application code. Development projects, `.runtime` source caches,
+API keys, and user data are excluded. gbXML assets are deliberately omitted.
+Windows sandbox setup and Linux kernel/desktop-library prerequisites still
+apply: self-contained means no separately installed simulation toolchain,
+not a separate operating system or a VM. Signing/notarization, wider clean-machine
+testing, and full native tool coverage remain production-release requirements.
 
 Local packaging:
 
 ```sh
-npm run package -- --mac --arm64  # On Apple Silicon macOS
-npm run package -- --win --x64    # On Windows
-npm run package -- --linux --x64  # On Linux
-CHATSTUDIO_EXECUTABLE="release/mac-arm64/ChatStudio.app/Contents/MacOS/ChatStudio" npm run test:package
+npm run package:native           # On the supported target platform
+CHATSTUDIO_EXPECT_BUNDLE=1 CHATSTUDIO_EXECUTABLE="release-native/mac-arm64/ChatStudio.app/Contents/MacOS/ChatStudio" npm run test:package
 ```
 
 Resources are deliberately unpacked (`asar: false`) so utility processes and
 native sandbox helper executables can use real filesystem paths. The packaging
-allowlist includes built application code and production dependencies only.
+allowlist includes built application code, its license, production dependencies,
+and the explicitly selected native runtime resources.

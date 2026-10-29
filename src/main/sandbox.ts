@@ -34,6 +34,9 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
   const runtimeRoot = path.resolve(path.dirname(fileURLToPath(import.meta.resolve("@carderne/sandbox-runtime"))), "..");
   const seccompRoot = path.join(runtimeRoot, "vendor/seccomp");
   const readRoots = [...new Set([...config.backend.readRoots, ...resolvedRoots, ...(process.platform === "linux" ? [seccompRoot] : [])])];
+  if (process.platform === "win32" && [workspace, command, ...readRoots].some((p) => contains(homedir(), p))) {
+    throw new Error("The experimental Windows sandbox requires projects and runtime installations outside your user profile. Use C:\\ChatStudio Projects and the machine-wide installer; home-directory protection remains enabled.");
+  }
   if ([path.dirname(command), ...readRoots].some((p) => p === homedir() || p === path.parse(p).root
     || contains(p, privatePath) || contains(privatePath, p))) {
     throw new Error("Runtime read paths must not expose home, filesystem root, or ChatStudio private data.");
@@ -61,6 +64,7 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
       ...(process.platform === "win32" ? [path.join(process.env.SystemRoot || "C:\\Windows", "System32"),
         path.join(process.env.SystemRoot || "C:\\Windows", "System32/WindowsPowerShell/v1.0")] : ["/usr/bin", "/bin", "/usr/sbin", "/sbin"])].join(path.delimiter),
     LANG: "en_US.UTF-8",
+    PYTHONUTF8: "1",
     HOME: path.join(workspace, ".home"),
     TMPDIR: path.join(workspace, "tmp"),
     ...config.backend.environment,
@@ -77,7 +81,8 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
   const windows = process.platform === "win32";
   const psQuote = (s: string) => `'${s.replaceAll("'", "''")}'`;
   const expression = [command, ...config.backend.args].map(windows ? psQuote : quote).join(" ");
-  const windowsExpression = Object.entries(env).map(([key, val]) => `$env:${key}=${psQuote(val)}`).join(";")
+  const windowsExpression = "[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);$OutputEncoding=[Console]::OutputEncoding;"
+    + Object.entries(env).map(([key, val]) => `$env:${key}=${psQuote(val)}`).join(";")
     + "; & " + expression + "; exit $LASTEXITCODE";
   const wrapped = await SandboxManager.wrapWithSandboxArgv(
     windows ? windowsExpression : expression,

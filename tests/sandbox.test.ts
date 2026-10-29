@@ -12,12 +12,12 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
   skip: !["darwin", "linux", "win32"].includes(process.platform),
   timeout: 120_000,
 }, async () => {
-  const base = await mkdtemp(path.join(homedir(), ".chatstudio-test-"));
-  const outsideRoot = await realpath(await mkdtemp(path.join(tmpdir(), "chatstudio-outside-")));
+  const base = await mkdtemp(path.join(process.platform === "win32" ? process.cwd() : homedir(), ".chatstudio-test-"));
+  const outsideRoot = await realpath(await mkdtemp(path.join(process.platform === "win32" ? homedir() : tmpdir(), "chatstudio-outside-")));
   const outsideFile = path.join(outsideRoot, "escape.txt");
   const workspace = path.join(base, "workspace");
   const privateRoot = path.join(base, "private");
-  const secret = path.join(base, "secret.txt");
+  const secret = path.join(process.platform === "win32" ? outsideRoot : base, "secret.txt");
   const server = createServer((socket) => socket.end("unexpected"));
   process.env.CHATSTUDIO_TEST_SECRET = "must-not-inherit";
   try {
@@ -82,7 +82,7 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
 test("internet switch allows and then blocks public outbound connections through the sandbox proxy", {
   skip: !["darwin", "linux", "win32"].includes(process.platform), timeout: 120_000,
 }, async () => {
-  const base = await mkdtemp(path.join(homedir(), ".chatstudio-network-test-"));
+  const base = await mkdtemp(path.join(process.platform === "win32" ? process.cwd() : homedir(), ".chatstudio-network-test-"));
   const workspace = path.join(base, "workspace"), privateRoot = path.join(base, "private");
   try {
     await mkdir(workspace); await mkdir(privateRoot);

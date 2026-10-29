@@ -32,6 +32,7 @@ export function App() {
   const [viewerBusy, setViewerBusy] = useState(false);
   const [networkBusy, setNetworkBusy] = useState(false);
   const [sandboxSetup, setSandboxSetup] = useState(false);
+  const [sandboxWindows, setSandboxWindows] = useState(false);
   const [sandboxBusy, setSandboxBusy] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,7 +57,9 @@ export function App() {
   }, [provider, baseUrl]);
 
   useEffect(() => {
-    void window.chatstudio.sandboxStatus().then((state) => setSandboxSetup(state.windows && !state.ready))
+    void window.chatstudio.sandboxStatus().then((state) => {
+      setSandboxWindows(state.windows); setSandboxSetup(state.windows && !state.ready);
+    })
       .catch((e: unknown) => setError(errorMessage(e)));
   }, []);
 
@@ -341,14 +344,14 @@ export function App() {
             onClick={() => void run(() => rememberCredential(false))}>Forget saved key</button>
         </div>
         <h2>Native OpenStudio MCP</h2>
-        {sandboxSetup && <div>
+        {sandboxWindows && <div>
           <p>Windows native execution requires one-time sandbox setup (administrator/UAC approval).
             It creates an isolated account and network filters. Windows support is experimental.</p>
           <button disabled={sandboxBusy || busy || connected || connecting || viewerBusy} onClick={() => {
             setSandboxBusy(true);
             void window.chatstudio.installSandbox().then(() => setSandboxSetup(false))
               .catch((e: unknown) => setError(errorMessage(e))).finally(() => setSandboxBusy(false));
-          }}>{sandboxBusy ? "Setting up sandbox..." : "Set up Windows sandbox"}</button>
+          }}>{sandboxBusy ? "Setting up sandbox..." : sandboxSetup ? "Set up Windows sandbox" : "Repair Windows sandbox"}</button>
         </div>}
         <p>{config.bundledRuntime
           ? "Bundled OpenStudio, EnergyPlus, Python, Ruby/gems, and Measure assets are ready. Choose a project and connect."

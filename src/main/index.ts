@@ -138,6 +138,9 @@ projects = new Projects(privateRoot);
 const credentials = new Credentials(privateRoot, safeStorage);
 const configPath = path.join(privateRoot, "config.json");
 const bundleRoot = path.join(process.resourcesPath, "native");
+const defaultWorkspace = process.platform === "win32"
+  ? path.join(`${process.env.SystemDrive || "C:"}\\`, "ChatStudio Projects", "first-building")
+  : path.join(app.getPath("documents"), "ChatStudio Projects", "first-building");
 if (app.isPackaged) process.env.CHATSTUDIO_SANDBOX_HELPERS = path.join(bundleRoot, "sandbox");
 let hasBundle = false;
 if (app.isPackaged) {
@@ -157,7 +160,7 @@ const loadConfig = async (): Promise<AppConfig> => {
     }
     catch (error) {
       if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
-        if (hasBundle) return bundledConfig(bundleRoot, path.join(app.getPath("documents"), "ChatStudio Projects", "first-building"));
+        if (hasBundle) return bundledConfig(bundleRoot, defaultWorkspace);
         try {
           return validateConfig(JSON.parse(await readFile(path.join(app.getAppPath(), ".runtime/backend.json"), "utf8")));
         } catch (runtimeError) {
@@ -179,10 +182,11 @@ const inspectFile = async (kind: InspectionKind, file: unknown) => {
   finally { viewerRunning = false; }
 };
 const channels: Record<string, (...args: unknown[]) => unknown> = {
-  "sandbox:status": () => ({
-    windows: process.platform === "win32",
-    ready: process.platform !== "win32" || getWindowsSandboxUserStatus().provisioned,
-  }),
+  "sandbox:status": () => {
+    if (process.platform !== "win32") return { windows: false, ready: true };
+    const state = getWindowsSandboxUserStatus();
+    return { windows: true, ready: state.provisioned && state.credPresent && state.inSandboxGroup && state.groupExists };
+  },
   "sandbox:install": async () => {
     if (process.platform !== "win32") throw new Error("Windows sandbox setup is only available on Windows.");
     if (promptRunning || projectChanging || viewerRunning) throw new Error("Wait for the current operation before sandbox setup.");
@@ -216,7 +220,7 @@ const channels: Record<string, (...args: unknown[]) => unknown> = {
     if (!hasBundle) return null;
     if (typeof workspace !== "string") throw new Error("Invalid project folder.");
     const config = validateConfig({ ...defaultConfig(),
-      workspace: workspace || path.join(app.getPath("documents"), "ChatStudio Projects", "first-building") });
+      workspace: workspace || defaultWorkspace });
     return bundledConfig(bundleRoot, config.workspace);
   },
   "workspace:choose": async () => {
