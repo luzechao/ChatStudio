@@ -12,11 +12,16 @@ test("Windows event-loop patch uses named pipes and checks pinned CPython source
     await mkdir(path.dirname(file));
     await writeFile(file, `        self._ssock, self._csock = socket.socketpair()
         self._ssock.setblocking(False)
-        self._csock.setblocking(False)`);
+        self._csock.setblocking(False)
+        if threading.current_thread() is threading.main_thread():
+            signal.set_wakeup_fd(self._csock.fileno())
+        if threading.current_thread() is threading.main_thread():
+            signal.set_wakeup_fd(-1)`);
     await patchWindowsEventLoop(directory);
     const patched = await readFile(file, "utf8");
     assert.match(patched, /from chatstudio_windows_self_pipe import pipe_pair/);
     assert.doesNotMatch(patched, /socket\.socketpair/);
+    assert.equal(patched.split("and isinstance(self._csock, socket.socket)").length, 3);
     await patchWindowsEventLoop(directory);
     assert.equal(await readFile(file, "utf8"), patched);
     await writeFile(file, "unexpected");

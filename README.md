@@ -98,6 +98,9 @@ bundle; the isolated account, restricted token, job, ACL and WFP policy remain
 unchanged. Bundled Windows CPython also uses named pipes instead of TCP sockets
 for asyncio's internal wakeups: offline WFP policy blocks the standard library's
 localhost socket-pair fallback. This does not grant localhost or Internet access.
+Socket-only console-signal wakeup descriptors are not installed for these
+headless named-pipe loops; MCP cancellation, pipe EOF, script timeouts and
+Windows job termination remain in effect.
 Linux
 builds need Bubblewrap, socat, patchelf and enabled Ubuntu deb-src repositories;
 CI bundles their required files and source rather than requiring users to install
