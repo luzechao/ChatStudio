@@ -330,6 +330,10 @@ not the MCP server's current building model. All sessions are ephemeral in this 
 ## Sandbox boundaries and limitations
 
 - The entire MCP server and its descendants are wrapped, not just the EnergyPlus executable.
+- On Linux the upstream MCP's inner sandbox uses its `posix` mode (environment
+  scrubbing and process limits), because its Docker-specific Landlock paths do
+  not describe relocatable desktop bundles. The outer Bubblewrap policy still
+  enforces the project filesystem/network boundary for every descendant.
 - User-home reads are denied except explicitly allowed project/dependency roots.
 - ChatStudio private state is denied. Dependencies are read-only.
 - Workspace writes are allowed; the runtime additionally permits its standard

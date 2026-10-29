@@ -68,7 +68,8 @@ export async function prepareSandbox(raw: AppConfig, privateRoot: string) {
     OPENSTUDIO_MCP_RUN_ROOT: path.join(workspace, "runs"),
     OPENSTUDIO_MCP_MEASURES_DIR: path.join(workspace, "measures"),
     OPENSTUDIO_MCP_INPUT_ROOT: path.join(workspace, "inputs"),
-    OSMCP_SANDBOX: "auto",
+    // The outer OS sandbox enforces project boundaries; upstream Landlock assumes Docker-only runtime paths.
+    OSMCP_SANDBOX: process.platform === "linux" ? "posix" : "auto",
     OSMCP_ENABLE_CODE_TOOLS: "true",
   };
   // Every token is literal shell data; never concatenate unquoted user arguments.
