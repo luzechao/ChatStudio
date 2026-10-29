@@ -1,0 +1,121 @@
+name: Desktop CI and preview releases
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: mac
+            arch: arm64
+            executable: release/mac-arm64/ChatStudio.app/Contents/MacOS/ChatStudio
+          - os: macos-15-intel
+            platform: mac
+            arch: x64
+            executable: release/mac/ChatStudio.app/Contents/MacOS/ChatStudio
+          - os: ubuntu-24.04
+            platform: linux
+            arch: x64
+            executable: release/linux-unpacked/chatstudio
+          - os: windows-2022
+            platform: win
+            arch: x64
+            executable: release/win-unpacked/ChatStudio.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+          cache: npm
+      - name: Install Linux sandbox and desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap socat ripgrep xvfb libfuse2t64
+          # GitHub's disposable runner must permit bubblewrap's user namespace.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Install macOS sandbox dependencies
+        if: runner.os == 'macOS'
+        run: brew install ripgrep
+      - run: npm ci
+      - name: Require tag to match package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node -e "if (process.env.TAG !== 'v' + require('./package.json').version) throw new Error('Tag must match package.json version')"
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Verify provider requests on Windows and macOS
+        if: runner.os != 'Linux'
+        run: npm run test:provider
+      - name: Verify provider requests on Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:provider
+      - name: Build unsigned preview installers
+        run: npx electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Smoke-test packaged app
+        if: runner.os != 'Linux'
+        run: npm run test:package
+        env:
+          CHATSTUDIO_EXECUTABLE: ${{ matrix.executable }}
+      - name: Smoke-test packaged app on Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:package
+        env:
+          CHATSTUDIO_EXECUTABLE: ${{ matrix.executable }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ChatStudio-${{ matrix.platform }}-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.exe
+            release/*.AppImage
+            release/*.deb
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: desktop
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+      - name: Create checksums and draft preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          cd installers
+          sha256sum * > SHA256SUMS.txt
+          gh release create "$TAG" ./* --verify-tag --draft --prerelease \
+            --title "ChatStudio $TAG — unsigned desktop preview" \
+            --notes "Unsigned preview installers for macOS (Apple Silicon and Intel), Windows x64, and Linux x64. Native SDK/CLI, Python, EnergyPlus, Ruby gems, and Measure assets are NOT bundled. Configure an external native runtime on macOS/Linux. Windows native modeling remains disabled pending a validated sandbox adapter; AI chat is available. These are not signed/notarized production distributions. See the repository README for setup and limitations."
