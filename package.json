@@ -1,6 +1,6 @@
 {
   "name": "chatstudio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "A local-first desktop building energy modeling assistant.",
   "author": "ChatStudio contributors",
@@ -16,7 +16,7 @@
     "test:native": "tsx --test tests/native.integration.ts",
     "test:desktop": "node --test tests/desktop.integration.mjs",
     "test:viewers": "tsx --test tests/viewer.native.ts && node --test tests/viewer.integration.mjs",
-    "test:provider": "node --test tests/provider.integration.mjs tests/credentials.integration.mjs",
+    "test:provider": "node --test --test-concurrency=1 tests/provider.integration.mjs tests/credentials.integration.mjs",
     "package": "npm run build && electron-builder --publish never",
     "package:native": "npm run setup:bundle && npm run build && electron-builder --config electron-builder.native.yml --mac --arm64 --publish never",
     "test:bundle": "tsx --test tests/bundle.integration.ts",

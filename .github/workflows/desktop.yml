@@ -63,9 +63,13 @@ jobs:
       - name: Verify provider requests on Windows and macOS
         if: runner.os != 'Linux'
         run: npm run test:provider
+        env:
+          DEBUG: pw:browser
       - name: Verify provider requests on Linux
         if: runner.os == 'Linux'
         run: xvfb-run -a npm run test:provider
+        env:
+          DEBUG: pw:browser
       - name: Build unsigned preview installers
         run: npx electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
         env:

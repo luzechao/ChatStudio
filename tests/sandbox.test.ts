@@ -26,11 +26,13 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
     const address = server.address();
     assert.ok(address && typeof address === "object");
     const script = path.join(workspace, "probe.mjs");
+    const deniedCodes = process.platform === "linux" ? ["EPERM", "EACCES", "ENOENT"] : ["EPERM", "EACCES"];
     await writeFile(script, `
       import fs from 'node:fs';
       import net from 'node:net';
       import {spawnSync} from 'node:child_process';
-      const blocked = (fn) => {try {fn();return false;}catch(e){if(!['EPERM','EACCES'].includes(e.code))throw e;return true;}};
+      const deniedCodes = ${JSON.stringify(deniedCodes)};
+      const blocked = (fn) => {try {fn();return false;}catch(e){if(!deniedCodes.includes(e.code))throw e;return true;}};
       const out = {};
       fs.writeFileSync(${JSON.stringify(path.join(workspace, "allowed.txt"))}, 'allowed');
       out.workspaceWrite = true;
@@ -38,7 +40,7 @@ test("real OS sandbox blocks sibling/private reads, outside writes, child escape
       out.privateReadDenied = blocked(()=>fs.readFileSync(${JSON.stringify(path.join(privateRoot, "secret.txt"))}));
       out.outsideWriteDenied = blocked(()=>fs.writeFileSync(${JSON.stringify(path.join(base, "escape.txt"))}, 'no'));
       out.environmentScrubbed = !process.env.CHATSTUDIO_TEST_SECRET;
-      const child=spawnSync(process.execPath,['-e',${JSON.stringify(`try {require('fs').readFileSync(${JSON.stringify(secret)});process.exit(1)}catch(e){process.exit(['EPERM','EACCES'].includes(e.code)?0:2)}`)}],{encoding:'utf8'});
+      const child=spawnSync(process.execPath,['-e',${JSON.stringify(`try {require('fs').readFileSync(${JSON.stringify(secret)});process.exit(1)}catch(e){process.exit(${JSON.stringify(deniedCodes)}.includes(e.code)?0:2)}`)}],{encoding:'utf8'});
       out.childReadDenied = child.status === 0;
       out.networkDenied = await new Promise(resolve=>{
         const socket=net.connect(${address.port},'127.0.0.1');

@@ -10,10 +10,13 @@ workflow guidance. Modeling and simulation use native desktop runtimes.
 native SDK/CLI, EnergyPlus, Python, Ruby/gems, and Measure assets. Cross-platform
 CI builds desktop-only previews; native bundling has not been deployed to CI.
 
-Download from [GitHub Releases](https://github.com/luzechao/ChatStudio/releases).
-Choose a file with **`native-mac-arm64`** for the self-contained Apple Silicon
-build. Other installers require an external native runtime; Windows native
-modeling is not yet enabled. See each release's notes for limitations.
+Download desktop-only previews from
+[GitHub Releases](https://github.com/luzechao/ChatStudio/releases).
+These installers require an external native runtime; Windows native modeling
+is not yet enabled. The local self-contained Apple Silicon build is not
+published while third-party redistribution review is pending, including the
+gbXML source repository's missing repository-level license.
+See each release's notes for limitations.
 
 ## What works
 
