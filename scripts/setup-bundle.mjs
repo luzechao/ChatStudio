@@ -177,7 +177,8 @@ if (process.platform === "linux") {
   await mkdir(lib, { recursive: true });
   for (const name of ["bwrap", "socat"]) {
     const binary = `/usr/bin/${name}`;
-    await cp(binary, path.join(helpers, name));
+    await cp(binary, path.join(helpers, name), { dereference: true });
+    await chmod(path.join(helpers, name), 0o755);
     const linkage = await run("ldd", [binary], { capture: true });
     for (const match of linkage.matchAll(/=> (\/\S+)/g)) {
       if (/\/libc\.so|\/libm\.so|\/libpthread\.so|\/libdl\.so/.test(match[1])) continue;
